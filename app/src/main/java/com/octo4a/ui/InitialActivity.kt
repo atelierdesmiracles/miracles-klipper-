@@ -26,6 +26,7 @@ class InitialActivity : AppCompatActivity() {
     private lateinit var setupProgress: ProgressBar
     private lateinit var setupButton: Button
     private lateinit var openReleaseButton: Button
+    private lateinit var openMainsailButton: Button
     private var installJob: Future<*>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +38,7 @@ class InitialActivity : AppCompatActivity() {
         setupProgress = findViewById(R.id.setupProgress)
         setupButton = findViewById(R.id.installButton)
         openReleaseButton = findViewById(R.id.openBootstrapRelease)
+        openMainsailButton = findViewById(R.id.openMainsailButton)
 
         val rooted = isDeviceRooted()
         Toast.makeText(
@@ -58,6 +60,7 @@ class InitialActivity : AppCompatActivity() {
         if (File(existingRootfs, "opt/klipper/klippy/klippy.py").isFile) {
             setupStatus.text = getString(R.string.bootstrap_installed_runtime_pending)
             setupButton.text = getString(R.string.runtime_start_button)
+            openMainsailButton.visibility = android.view.View.VISIBLE
         } else {
             setupStatus.text = getString(R.string.bootstrap_not_installed_status)
             setupButton.text = getString(R.string.landing_install)
@@ -65,6 +68,9 @@ class InitialActivity : AppCompatActivity() {
 
         openReleaseButton.setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DebianRootfsInstaller.ROOTFS_RELEASE_URL)))
+        }
+        openMainsailButton.setOnClickListener {
+            startActivity(Intent(this, WebinterfaceActivity::class.java))
         }
         setupButton.setOnClickListener {
             if (File(existingRootfs, "opt/klipper/klippy/klippy.py").isFile) {
@@ -145,6 +151,7 @@ class InitialActivity : AppCompatActivity() {
                     setupProgress.visibility = ProgressBar.GONE
                     setupStatus.text = getString(R.string.bootstrap_installed_runtime_pending)
                     setupButton.text = getString(R.string.runtime_start_button)
+                    openMainsailButton.visibility = android.view.View.VISIBLE
                     Toast.makeText(this, getString(R.string.bootstrap_install_success), Toast.LENGTH_LONG).show()
                 }
             },
