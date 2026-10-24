@@ -19,9 +19,7 @@ android {
         multiDexEnabled = true
 
         ndk {
-            abiFilters.add("x86")
-            abiFilters.add("x86_64")
-            abiFilters.add("armeabi-v7a")
+            // The pinned Debian Bookworm rootfs and packaged PRoot runtime are ARM64-only.
             abiFilters.add("arm64-v8a")
         }
 
