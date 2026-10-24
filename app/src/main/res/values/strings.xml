@@ -73,4 +73,14 @@
     <string name="camera_preview_manual_af">Mise au point manuelle de la caméra</string>
     <string name="root_status_rooted">Diagnostic Android : accès root détecté. Certaines fonctions système peuvent être disponibles, mais le fonctionnement dépend de l’appareil.</string>
     <string name="root_status_not_rooted">Diagnostic Android : aucun accès root détecté. Miracle Klipper doit fonctionner sans root lorsque les permissions Android et l’environnement Linux le permettent.</string>
+    <string name="open_bootstrap_release">Voir le bootstrap Debian</string>
+    <string name="bootstrap_not_installed_status">Le rootfs Debian officiel n’est pas encore installé.</string>
+    <string name="bootstrap_installed_runtime_pending">Rootfs installé et vérifié. Le lancement des services attend l’intégration du runtime PRoot.</string>
+    <string name="bootstrap_reinstall_button">Réinstaller le rootfs Debian</string>
+    <string name="bootstrap_confirm_title">Installer Debian Bookworm ARM64</string>
+    <string name="bootstrap_confirm_message">Télécharger environ 237 Mo depuis la release officielle, vérifier le SHA-256, puis installer l’environnement dans le stockage privé de Miracle Klipper. Une connexion Wi-Fi est recommandée.</string>
+    <string name="bootstrap_downloading_status">Téléchargement et vérification du bootstrap…</string>
+    <string name="bootstrap_download_progress">Téléchargé : %1$d Mo sur %2$d Mo</string>
+    <string name="bootstrap_install_success">Rootfs téléchargé, vérifié et installé.</string>
+    <string name="bootstrap_install_failed">Échec de l’installation : %1$s</string>
 </resources>
