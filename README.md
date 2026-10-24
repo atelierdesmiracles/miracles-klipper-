@@ -14,7 +14,7 @@ La release [Miracle Klipper v0.1.0](https://github.com/atelierdesmiracles/boostr
 | Architecture publiée | ARM64 (`arm64-v8a`) |
 | Système | Debian 12 Bookworm |
 | Archive | [Rootfs ARM64 (.tar.xz)](https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz) |
-| Taille | 237 461 348 octets |\n| SHA-256 | `05bb0f9dfc90091aad7312620e47aceef788f6b26e46a499112ea81e72af30d0` |
+| Taille | 237 450 344 octets |\n| SHA-256 | `86d001f4c6979364473616ce82fb2ae0865848b02bfb585ee3f4c5272bb67cc9` |
 | Fichier SHA-256 | [Télécharger la somme](https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz.sha256) |
 
 Cette archive contient un rootfs Debian avec Klipper, Moonraker, Mainsail et Nginx. Ce n'est ni une image disque amorçable, ni un APK. La v0.1.0 ne fournit pas actuellement d'archive armhf ou amd64.
@@ -28,9 +28,15 @@ Cette archive contient un rootfs Debian avec Klipper, Moonraker, Mainsail et Ngi
 - Installer Klipper + Moonraker + Mainsail via le rootfs Debian publié.
 - **Ne pas installer Fluidd.**
 
+## Runtime Android PRoot
+
+Le workflow Android télécharge les cinq composants ARM64 de PRoot Runtime v1.2.8 depuis la release épinglée, vérifie chacun par SHA-256, puis les embarque dans l'APK. Le service `MiracleKlipperService` lance le superviseur dans le rootfs Debian et conserve les journaux dans `files/miracle-klipper/logs/proot-runtime.log`. Cette intégration doit encore être validée sur un appareil réel.
+
+Compatibilité actuelle visée : Android 8.0+ (API 26), ARM64 uniquement.
+
 ## Attention : rootfs et runtime Android
 
-Changer uniquement l'URL de téléchargement ne suffit pas. Il faut importer et étudier les sources Android Octo4a, supprimer le parcours d'installation OctoPrint et construire un moteur d'installation sécurisé pour le rootfs.
+L'archive Debian seule ne suffit pas : le runtime PRoot doit être empaqueté avec l'application et les services doivent être lancés sans supposer que systemd est PID 1.
 
 Le client doit :
 - accepter uniquement ARM64 sur la v0.1.0 ;
