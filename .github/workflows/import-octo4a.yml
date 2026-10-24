@@ -75,7 +75,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app gradle gradlew settings.gradle* build.gradle* gradle.properties gradle/libs.versions.toml LICENSE-OCTO4A-AGPL-3.0.md README-OCTO4A-UPSTREAM.md OCTO4A_UPSTREAM_COMMIT.txt
+          git add -A
           git commit -m "build: import Octo4a Android sources"
           git push origin HEAD:"${{ github.event.inputs.target_branch }}"
 
