@@ -11,6 +11,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+      SIGNING_ALIAS: ${{ secrets.ALIAS }}
+      KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,15 +58,15 @@ jobs:
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Sign release APK (when signing secrets are configured)
-        if: ${{ secrets.SIGNING_KEY != '' && secrets.ALIAS != '' && secrets.KEY_STORE_PASSWORD != '' && secrets.KEY_PASSWORD != '' }}
+        if: ${{ env.SIGNING_KEY != '' && env.SIGNING_ALIAS != '' && env.KEY_STORE_PASSWORD != '' && env.KEY_PASSWORD != '' }}
         id: sign_app
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
+          signingKeyBase64: ${{ env.SIGNING_KEY }}
+          alias: ${{ env.SIGNING_ALIAS }}
+          keyStorePassword: ${{ env.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ env.KEY_PASSWORD }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
