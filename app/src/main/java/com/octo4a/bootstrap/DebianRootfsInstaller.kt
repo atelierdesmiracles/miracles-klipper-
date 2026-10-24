@@ -201,13 +201,19 @@ class DebianRootfsInstaller(
                         "Archive rejetée : entrée hors du dossier rootfs ($name)."
                     }
 
-                    // Symlinks are common inside Debian rootfs archives. Permit only relative
-                    // targets that remain inside the rootfs when resolved from the link parent.
+                    // Debian rootfs archives commonly contain absolute symlinks such as
+                    // /usr/bin/python3. Inside PRoot these resolve against the guest root,
+                    // not Android's host root. Validate them as guest-root paths before creating.
                     if (entry.isSymbolicLink) {
                         val linkName = entry.linkName
-                        check(!File(linkName).isAbsolute) { "Lien absolu rejeté : $name" }
-                        val linkTarget = File(target.parentFile, linkName).absoluteFile.normalizeCompat().path
-                        check(linkTarget == rootPath || linkTarget.startsWith(rootPath + File.separator)) { "Lien sortant du rootfs rejeté : $name" }
+                        val linkTarget = if (File(linkName).isAbsolute) {
+                            File(output, linkName.removePrefix("/")).absoluteFile.normalizeCompat().path
+                        } else {
+                            File(target.parentFile, linkName).absoluteFile.normalizeCompat().path
+                        }
+                        check(linkTarget == rootPath || linkTarget.startsWith(rootPath + File.separator)) {
+                            "Lien sortant du rootfs rejeté : $name -> $linkName"
+                        }
                         target.parentFile?.mkdirs()
                         if (target.exists() || target.isSymbolicLinkCompat()) target.delete()
                         android.system.Os.symlink(linkName, target.absolutePath)
