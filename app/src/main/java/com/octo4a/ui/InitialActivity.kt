@@ -19,7 +19,7 @@ import java.util.concurrent.Future
  * Miracle Klipper setup screen. Installs the pinned official Debian rootfs,
  * rather than offering the old OctoPrint bootstrap catalogue.
  *
- * Runtime launch remains disabled until the Android PRoot adapter is integrated.
+ * Installs the pinned rootfs and exposes the PRoot-backed runtime and Mainsail entry point.
  */
 class InitialActivity : AppCompatActivity() {
     private lateinit var setupStatus: TextView
