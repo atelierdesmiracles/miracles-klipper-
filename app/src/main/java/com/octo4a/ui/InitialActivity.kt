@@ -45,6 +45,15 @@ class InitialActivity : AppCompatActivity() {
             Toast.LENGTH_LONG
         ).show()
 
+        val supportsArm64Rootfs = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP &&
+            Build.SUPPORTED_ABIS.any { it == "arm64-v8a" }
+        if (!supportsArm64Rootfs) {
+            setupStatus.text = getString(R.string.bootstrap_unsupported_device)
+            setupButton.isEnabled = false
+            openReleaseButton.isEnabled = true
+            return
+        }
+
         val existingRootfs = File(filesDir, "miracle-klipper/rootfs")
         if (File(existingRootfs, "opt/klipper/klippy/klippy.py").isFile) {
             setupStatus.text = getString(R.string.bootstrap_installed_runtime_pending)
