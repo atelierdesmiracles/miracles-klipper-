@@ -84,5 +84,4 @@
     <string name="bootstrap_install_success">Rootfs téléchargé, vérifié et installé.</string>
     <string name="bootstrap_install_failed">Échec de l’installation : %1$s</string>
     <string name="bootstrap_runtime_notice">L’installation du rootfs est distincte du démarrage des services Klipper/Moonraker. La compatibilité PRoot doit être validée avant toute impression.</string>
-    <string name="landing_install">Installer le bootstrap Debian</string>
-</resources>
+    </resources>
