@@ -2,7 +2,7 @@ project(Octo4a)
 cmake_minimum_required(VERSION 3.4.1)
 
 add_library(vsp-pty SHARED
-            vsp-pty.cpp openpty.c)
+            vsp-pty.cpp)
 
 target_link_libraries(vsp-pty
                       android
