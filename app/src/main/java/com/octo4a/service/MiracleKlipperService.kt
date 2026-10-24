@@ -105,17 +105,24 @@ class MiracleKlipperService : Service() {
             "-b", "/sys",
             "/bin/sh", "/tmp/miracle-klipper-supervisor.sh"
         )
-        val builder = ProcessBuilder(command)
-            .redirectErrorStream(true)
-            .redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
+        val builder = ProcessBuilder(command).redirectErrorStream(true)
         builder.environment()["PROOT_TMP_DIR"] = tmp.absolutePath
         builder.environment()["MIRACLE_KLIPPER_ROOT"] = "/"
         builder.environment()["MIRACLE_KLIPPER_DATA"] = "/home/klipper/printer_data"
         builder.environment()["HOME"] = "/home/klipper"
         runtimeProcess = builder.start()
-        appendLog("Superviseur Debian lancé (PID ${runtimeProcess?.pid() ?: "inconnu"}).")
+        appendLog("Superviseur Debian lancé.")
+        val process = runtimeProcess
         Thread({
-            val process = runtimeProcess
+            try {
+                process?.inputStream?.use { input ->
+                    java.io.FileOutputStream(logFile, true).use { output -> input.copyTo(output) }
+                }
+            } catch (error: Exception) {
+                appendLog("Erreur de lecture des journaux : ${error.message}")
+            }
+        }, "miracle-klipper-runtime-logs").apply { isDaemon = true; start() }
+        Thread({
             val exitCode = try { process?.waitFor() ?: -1 } catch (_: InterruptedException) { -1 }
             appendLog("Le superviseur s'est arrêté (code ${exitCode}).")
             if (runtimeProcess === process) {
