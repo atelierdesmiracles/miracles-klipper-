@@ -244,6 +244,7 @@ class DebianRootfsInstaller(
 
     companion object {
         const val ROOTFS_VERSION = "v0.1.0"
+        const val ROOTFS_RELEASE_URL = "https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/tag/v0.1.0"
         const val ROOTFS_URL = "https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz"
         const val EXPECTED_SHA256 = "86d001f4c6979364473616ce82fb2ae0865848b02bfb585ee3f4c5272bb67cc9"
         private const val MIN_ARCHIVE_BYTES = 100L * 1024L * 1024L
