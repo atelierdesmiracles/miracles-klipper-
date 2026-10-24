@@ -174,7 +174,7 @@ class DebianRootfsInstaller(
                     if (entry.isSymbolicLink) {
                         val linkName = entry.linkName
                         check(!File(linkName).isAbsolute) { "Lien absolu rejeté : $name" }
-                        val linkTarget = File(target.parentFile, linkName).canonicalFile.toPath()
+                        val linkTarget = File(target.parentFile, linkName).absoluteFile.normalizeCompat().toPath()
                         check(linkTarget.startsWith(rootPath)) { "Lien sortant du rootfs rejeté : $name" }
                         target.parentFile?.mkdirs()
                         if (target.exists() || target.isSymbolicLinkCompat()) target.delete()
@@ -219,6 +219,18 @@ class DebianRootfsInstaller(
                 }
             }
         }
+    }
+
+    private fun File.normalizeCompat(): File {
+        val parts = mutableListOf<String>()
+        absolutePath.split(File.separatorChar).forEach { part ->
+            when (part) {
+                "", "." -> Unit
+                ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex)
+                else -> parts.add(part)
+            }
+        }
+        return File(File.separator + parts.joinToString(File.separator))
     }
 
     private fun File.isSymbolicLinkCompat(): Boolean =
