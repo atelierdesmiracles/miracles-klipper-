@@ -12,7 +12,8 @@ android {
     defaultConfig {
         applicationId = "com.octo4a"
         // The official Debian Bookworm rootfs is ARM64 and the safe extractor needs Android's Os APIs.
-        minSdk = 21
+        // The pinned PRoot runtime requires Android 8.0+ (API 26).
+        minSdk = 26
         targetSdk = 28
         versionName = "2.1.0"
         versionCode = 2001000
