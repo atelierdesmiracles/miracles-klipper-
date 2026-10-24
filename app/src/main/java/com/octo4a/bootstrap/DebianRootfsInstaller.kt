@@ -150,52 +150,81 @@ class DebianRootfsInstaller(
     }
 
     private fun extractTarXzSafely(archive: File, output: File) {
-        // XZ + TAR extraction is handled with Apache Commons Compress to validate every entry path.
-        val input = org.apache.commons.compress.compressors.xz.XZCompressorInputStream(
+        val xzInput = org.apache.commons.compress.compressors.xz.XZCompressorInputStream(
             BufferedInputStream(FileInputStream(archive))
         )
-        input.use { xz ->
+        xzInput.use { xz ->
             org.apache.commons.compress.archivers.tar.TarArchiveInputStream(xz).use { tar ->
                 while (true) {
                     val entry = tar.nextTarEntry ?: break
-                    val entryName = entry.name
-                    check(!entryName.startsWith("/") && !entryName.split('/').contains("..")) {
-                        "Archive rejetée : chemin non sûr ($entryName)."
-                    }
-                    val target = File(output, entryName)
-                    val normalizedRoot = output.canonicalFile.toPath()
-                    val normalizedTarget = target.canonicalFile.toPath()
-                    check(normalizedTarget.startsWith(normalizedRoot)) {
-                        "Archive rejetée : entrée hors du dossier rootfs ($entryName)."
+                    val name = entry.name
+                    check(!name.startsWith("/") && !name.split('/').contains("..")) {
+                        "Archive rejetée : chemin non sûr ($name)."
                     }
 
-                    // Fail closed on links until link ordering and chains can be validated.
-                    if (entry.isSymbolicLink || entry.isLink) {
-                        error("Archive rejetée : lien non pris en charge par l'extracteur sécurisé ($entryName).")
+                    val rootPath = output.canonicalFile.toPath()
+                    val target = File(output, name)
+                    val targetPath = target.canonicalFile.toPath()
+                    check(targetPath.startsWith(rootPath)) {
+                        "Archive rejetée : entrée hors du dossier rootfs ($name)."
                     }
+
+                    // Symlinks are common inside Debian rootfs archives. Permit only relative
+                    // targets that remain inside the rootfs when resolved from the link parent.
+                    if (entry.isSymbolicLink) {
+                        val linkName = entry.linkName
+                        check(!File(linkName).isAbsolute) { "Lien absolu rejeté : $name" }
+                        val linkTarget = File(target.parentFile, linkName).canonicalFile.toPath()
+                        check(linkTarget.startsWith(rootPath)) { "Lien sortant du rootfs rejeté : $name" }
+                        target.parentFile?.mkdirs()
+                        if (target.exists() || target.isSymbolicLinkCompat()) target.delete()
+                        android.system.Os.symlink(linkName, target.absolutePath)
+                        continue
+                    }
+                    if (entry.isLink) {
+                        val linkName = entry.linkName
+                        check(!linkName.startsWith("/") && !linkName.split('/').contains("..")) {
+                            "Lien physique non sûr rejeté : $name"
+                        }
+                        error("Archive rejetée : lien physique non pris en charge ($name).")
+                    }
+
                     if (entry.isDirectory) {
-                        check(target.isDirectory || target.mkdirs()) { "Impossible de créer $entryName" }
+                        check(target.isDirectory || target.mkdirs()) { "Impossible de créer $name" }
+                        target.setReadable((entry.mode and 0b100000000) != 0, false)
+                        target.setWritable((entry.mode and 0b010000000) != 0, false)
+                        target.setExecutable((entry.mode and 0b001001001) != 0, false)
                     } else if (entry.isFile) {
                         target.parentFile?.mkdirs()
-                        FileOutputStream(target).use { out ->
+                        FileOutputStream(target).use { outputStream ->
                             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                            while (true) {
-                                val count = tar.read(buffer)
-                                if (count < 0) break
-                                out.write(buffer, 0, count)
+                            var remaining = entry.size
+                            while (remaining > 0) {
+                                val count = tar.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                                check(count > 0) { "Archive tronquée dans l'entrée $name." }
+                                outputStream.write(buffer, 0, count)
+                                remaining -= count
                             }
-                            out.fd.sync()
+                            outputStream.fd.sync()
                         }
                         target.setReadable((entry.mode and 0b100000000) != 0, false)
                         target.setWritable((entry.mode and 0b010000000) != 0, false)
                         target.setExecutable((entry.mode and 0b001001001) != 0, false)
                     } else {
-                        error("Archive rejetée : type d'entrée non pris en charge ($entryName).")
+                        // Ignore only harmless metadata entries; reject special files.
+                        if (!entry.isGlobalPaxHeader && !entry.isPaxHeader) {
+                            error("Type d'entrée non pris en charge ($name).")
+                        }
                     }
                 }
             }
         }
     }
+
+    private fun File.isSymbolicLinkCompat(): Boolean =
+        try {
+            android.system.Os.lstat(absolutePath).let { it.st_mode and android.system.OsConstants.S_IFMT == android.system.OsConstants.S_IFLNK }
+        } catch (_: Exception) { false }
 
     private fun copyChecked(source: File, destination: File) {
         destination.parentFile?.mkdirs()
