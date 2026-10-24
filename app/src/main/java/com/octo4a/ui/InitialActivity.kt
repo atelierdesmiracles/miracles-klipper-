@@ -101,6 +101,14 @@ class InitialActivity: AppCompatActivity() {
         supportActionBar?.hide()
         setContentView(R.layout.activity_landing)
 
+        // Inform the user about root availability without requiring root to launch the app.
+        val rootMessage = if (isDeviceRooted()) {
+            R.string.root_status_rooted
+        } else {
+            R.string.root_status_not_rooted
+        }
+        Toast.makeText(this, getString(rootMessage), Toast.LENGTH_LONG).show()
+
         installationViewModel.bootstrapReleases.observe(this) {
             updateBootstrapSpinnerItems(it)
         }
@@ -181,6 +189,21 @@ class InitialActivity: AppCompatActivity() {
             startActivity(intent)
             finish()
         }
+    }
+
+    private fun isDeviceRooted(): Boolean {
+        if (Build.TAGS?.contains("test-keys") == true) return true
+        val knownSuPaths = arrayOf(
+            "/system/bin/su",
+            "/system/xbin/su",
+            "/sbin/su",
+            "/system/su",
+            "/system/bin/.ext/.su",
+            "/system/usr/we-need-root/su",
+            "/su/bin/su",
+            "/magisk/.core/bin/su"
+        )
+        return knownSuPaths.any { path -> File(path).exists() }
     }
 
     private fun isNetworkConnected(): Boolean {
