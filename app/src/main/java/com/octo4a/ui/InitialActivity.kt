@@ -27,6 +27,7 @@ class InitialActivity : AppCompatActivity() {
     private lateinit var setupButton: Button
     private lateinit var openReleaseButton: Button
     private lateinit var openMainsailButton: Button
+    private lateinit var diagnosticsButton: Button
     private var installJob: Future<*>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,6 +40,8 @@ class InitialActivity : AppCompatActivity() {
         setupButton = findViewById(R.id.installButton)
         openReleaseButton = findViewById(R.id.openBootstrapRelease)
         openMainsailButton = findViewById(R.id.openMainsailButton)
+        diagnosticsButton = findViewById(R.id.runtimeDiagnosticsButton)
+        diagnosticsButton.setOnClickListener { showRuntimeDiagnostics() }
 
         val rooted = isDeviceRooted()
         Toast.makeText(
@@ -83,6 +86,52 @@ class InitialActivity : AppCompatActivity() {
                     .setPositiveButton(R.string.action_ok) { _, _ -> installRootfs() }
                     .show()
             }
+        }
+    }
+
+    private fun showRuntimeDiagnostics() {
+        val base = File(filesDir, "miracle-klipper")
+        val rootfs = File(base, "rootfs")
+        val configDir = File(rootfs, "home/klipper/printer_data/config")
+        val logDir = File(rootfs, "home/klipper/printer_data/logs")
+        val sections = listOf(
+            "État des fichiers" to listOf(
+                "Rootfs Debian : " + if (rootfs.isDirectory) "présent" else "absent",
+                "Klipper : " + if (File(rootfs, "opt/klipper/klippy/klippy.py").isFile) "présent" else "absent",
+                "Moonraker : " + if (File(rootfs, "opt/moonraker/moonraker/moonraker.py").isFile) "présent" else "absent",
+                "printer.cfg : " + if (File(configDir, "printer.cfg").isFile) "présent" else "MANQUANT",
+                "moonraker.conf : " + if (File(configDir, "moonraker.conf").isFile) "présent" else "MANQUANT"
+            ).joinToString("\n"),
+            "Journal du superviseur Android" to readLastLines(File(base, "logs/proot-runtime.log")),
+            "Journal Klipper" to readLastLines(File(logDir, "klippy.log")),
+            "Journal Moonraker" to readLastLines(File(logDir, "moonraker.log")),
+            "Journal du superviseur Linux" to readLastLines(File(logDir, "klipper-supervisor.log"))
+        )
+        val report = sections.joinToString("\n\n") { (title, body) ->
+            "$title\n${body.ifBlank { "Aucune donnée disponible." }}"
+        }
+        val textView = TextView(this).apply {
+            text = report
+            textSize = 13f
+            setTextIsSelectable(true)
+            setPadding(32, 16, 32, 8)
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(textView) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.runtime_diagnostics_title)
+            .setView(scroll)
+            .setPositiveButton(R.string.runtime_diagnostics_refresh) { _, _ -> showRuntimeDiagnostics() }
+            .setNegativeButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun readLastLines(file: File, maxLines: Int = 80): String {
+        if (!file.isFile) return "Journal non créé."
+        return try {
+            file.useLines { lines -> lines.toList().takeLast(maxLines).joinToString("\n") }
+                .ifBlank { "Journal vide." }
+        } catch (error: Exception) {
+            "Lecture impossible : ${error.message ?: error.javaClass.simpleName}"
         }
     }
 
