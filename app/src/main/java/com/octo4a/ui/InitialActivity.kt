@@ -45,6 +45,7 @@ class InitialActivity : AppCompatActivity() {
         diagnosticsButton.setOnClickListener { showRuntimeDiagnostics() }
         printerConfigButton = findViewById(R.id.printerConfigButton)
         printerConfigButton.setOnClickListener { showPrinterConfigEditor() }
+        findViewById<Button>(R.id.moonrakerConfigButton).setOnClickListener { showMoonrakerConfigEditor() }
 
         val rooted = isDeviceRooted()
         Toast.makeText(
@@ -68,6 +69,7 @@ class InitialActivity : AppCompatActivity() {
             setupButton.text = getString(R.string.runtime_start_button)
             openMainsailButton.visibility = android.view.View.VISIBLE
             printerConfigButton.visibility = android.view.View.VISIBLE
+            findViewById<Button>(R.id.moonrakerConfigButton).visibility = android.view.View.VISIBLE
         } else {
             setupStatus.text = getString(R.string.bootstrap_not_installed_status)
             setupButton.text = getString(R.string.landing_install)
@@ -151,6 +153,79 @@ class InitialActivity : AppCompatActivity() {
                             }
                             configFile.writeText(content.trimEnd() + "\n")
                             Toast.makeText(this, getString(R.string.printer_config_saved), Toast.LENGTH_LONG).show()
+                            dialog.dismiss()
+                        } catch (error: Exception) {
+                            Toast.makeText(this, "Échec de sauvegarde : ${error.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+                dialog.show()
+            }
+    }
+
+    /**
+     * Edits Moonraker's server configuration with a backup and basic syntax checks.
+     * This is not a substitute for validating the config against the installed Moonraker version.
+     */
+    private fun showMoonrakerConfigEditor() {
+        val rootfs = File(filesDir, "miracle-klipper/rootfs")
+        val configDir = File(rootfs, "home/klipper/printer_data/config")
+        if (!configDir.isDirectory() && !configDir.mkdirs()) {
+            Toast.makeText(this, "Impossible de créer le dossier de configuration.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val configFile = File(configDir, "moonraker.conf")
+        if (!configFile.isFile) {
+            Toast.makeText(this, "moonraker.conf est absent du rootfs. Réinstalle ou vérifie le bootstrap Debian.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val editor = android.widget.EditText(this).apply {
+            minLines = 14
+            maxLines = 24
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            typeface = android.graphics.Typeface.MONOSPACE
+            setText(configFile.readText())
+            setPadding(28, 20, 28, 20)
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(editor) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.moonraker_config_title)
+            .setMessage(R.string.moonraker_config_instructions)
+            .setView(scroll)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.printer_config_validate, null)
+            .setPositiveButton(R.string.printer_config_save, null)
+            .create().also { dialog ->
+                dialog.setOnShowListener {
+                    dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                        val content = editor.text.toString()
+                        val hasServer = content.lineSequence().any { it.trim().equals("[server]", ignoreCase = true) }
+                        val message = if (content.isBlank()) {
+                            "ERREUR : le fichier est vide."
+                        } else if (!hasServer) {
+                            "ERREUR : la section [server] est absente."
+                        } else {
+                            "Contrôle structurel de base réussi : section [server] détectée.\n\n" +
+                                "Les permissions, les sockets et les options doivent encore être validés par Moonraker."
+                        }
+                        AlertDialog.Builder(this)
+                            .setTitle(R.string.moonraker_config_validation_title)
+                            .setMessage(message)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val content = editor.text.toString()
+                        val hasServer = content.lineSequence().any { it.trim().equals("[server]", ignoreCase = true) }
+                        if (content.isBlank() || !hasServer) {
+                            Toast.makeText(this, "ERREUR : le fichier doit être non vide et contenir [server].", Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
+                        }
+                        try {
+                            val backup = File(configDir, "moonraker.conf.backup-${System.currentTimeMillis()}")
+                            configFile.copyTo(backup, overwrite = false)
+                            configFile.writeText(content.trimEnd() + "\n")
+                            Toast.makeText(this, getString(R.string.moonraker_config_saved), Toast.LENGTH_LONG).show()
                             dialog.dismiss()
                         } catch (error: Exception) {
                             Toast.makeText(this, "Échec de sauvegarde : ${error.message}", Toast.LENGTH_LONG).show()
@@ -291,6 +366,7 @@ class InitialActivity : AppCompatActivity() {
                     setupButton.text = getString(R.string.runtime_start_button)
                     openMainsailButton.visibility = android.view.View.VISIBLE
                     printerConfigButton.visibility = android.view.View.VISIBLE
+                    findViewById<Button>(R.id.moonrakerConfigButton).visibility = android.view.View.VISIBLE
                     Toast.makeText(this, getString(R.string.bootstrap_install_success), Toast.LENGTH_LONG).show()
                 }
             },
