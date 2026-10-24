@@ -14,7 +14,7 @@ La release [Miracle Klipper v0.1.0](https://github.com/atelierdesmiracles/boostr
 | Architecture publiée | ARM64 (`arm64-v8a`) |
 | Système | Debian 12 Bookworm |
 | Archive | [Rootfs ARM64 (.tar.xz)](https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz) |
-| SHA-256 | `0fe5ec04fca882c8531a60169b795e6b0477229af77d6d75aedcff177e2ff56a` |
+| Taille | 237 461 348 octets |\n| SHA-256 | `05bb0f9dfc90091aad7312620e47aceef788f6b26e46a499112ea81e72af30d0` |
 | Fichier SHA-256 | [Télécharger la somme](https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz.sha256) |
 
 Cette archive contient un rootfs Debian avec Klipper, Moonraker, Mainsail et Nginx. Ce n'est ni une image disque amorçable, ni un APK. La v0.1.0 ne fournit pas actuellement d'archive armhf ou amd64.
