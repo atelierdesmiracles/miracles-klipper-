@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "product": "Miracle Klipper",
+  "bootstrap_version": "REPLACE_WITH_RELEASE_VERSION",
+  "release_url": "https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases",
+  "artifacts": {
+    "arm64-v8a": {
+      "architecture": "arm64",
+      "filename": "miracle-klipper-rootfs-arm64.tar.xz",
+      "url": "REPLACE_WITH_RELEASE_ASSET_URL",
+      "sha256": "REPLACE_WITH_64_HEX_SHA256"
+    },
+    "armeabi-v7a": {
+      "architecture": "armhf",
+      "filename": "miracle-klipper-rootfs-armhf.tar.xz",
+      "url": "REPLACE_WITH_RELEASE_ASSET_URL",
+      "sha256": "REPLACE_WITH_64_HEX_SHA256"
+    },
+    "x86_64": {
+      "architecture": "amd64",
+      "filename": "miracle-klipper-rootfs-amd64.tar.xz",
+      "url": "REPLACE_WITH_RELEASE_ASSET_URL",
+      "sha256": "REPLACE_WITH_64_HEX_SHA256"
+    }
+  },
+  "components": [
+    "klipper",
+    "moonraker",
+    "mainsail"
+  ]
+}
