@@ -55,7 +55,7 @@ Le client doit :
 
 ## Compilation actuelle
 
-Le workflow [Miracle Klipper Android Build](https://github.com/atelierdesmiracles/miracles-klipper-/actions/runs/40098128583) a compilé l’APK debug avec succès. [Télécharger l’artefact de compilation](https://github.com/atelierdesmiracles/miracles-klipper-/actions/runs/40098128583) (disponibilité temporaire via GitHub Actions).
+Une compilation debug antérieure a réussi avant l’intégration du runtime PRoot. La compilation de la version avec PRoot est en cours de correction ; consulter [les exécutions GitHub Actions](https://github.com/atelierdesmiracles/miracles-klipper-/actions) pour le statut actuel.
 
 La compilation de release reste à vérifier séparément ; aucune release publique APK n’est annoncée à ce stade.
 
