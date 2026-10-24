@@ -192,11 +192,24 @@ class DebianRootfsInstaller(
                         continue
                     }
                     if (entry.isLink) {
-                        val linkName = entry.linkName
+                        val linkName = entry.linkName.removePrefix("./")
                         check(!linkName.startsWith("/") && !linkName.split('/').contains("..")) {
                             "Lien physique non sûr rejeté : $name"
                         }
-                        error("Archive rejetée : lien physique non pris en charge ($name).")
+                        val linkTarget = File(output, linkName)
+                        val resolvedLinkTarget = linkTarget.canonicalPath
+                        check(resolvedLinkTarget == rootPath || resolvedLinkTarget.startsWith(rootPath + File.separator)) {
+                            "Lien physique hors du rootfs rejeté : $name"
+                        }
+                        check(linkTarget.isFile) {
+                            "La cible du lien physique n'a pas encore été extraite : $linkName"
+                        }
+                        target.parentFile?.mkdirs()
+                        copyChecked(linkTarget, target)
+                        target.setReadable((entry.mode and 0b100000000) != 0, false)
+                        target.setWritable((entry.mode and 0b010000000) != 0, false)
+                        target.setExecutable((entry.mode and 0b001001001) != 0, false)
+                        continue
                     }
 
                     if (entry.isDirectory) {
