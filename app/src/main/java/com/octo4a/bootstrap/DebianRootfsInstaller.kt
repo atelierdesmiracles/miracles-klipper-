@@ -114,7 +114,7 @@ class DebianRootfsInstaller(
         if (temporary.exists() && !temporary.delete()) error("Impossible de supprimer le téléchargement incomplet.")
         val connection = (URL(ROOTFS_URL).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
-            readTimeout = 60_000
+            readTimeout = 120_000
             instanceFollowRedirects = true
             requestMethod = "GET"
             setRequestProperty("User-Agent", "MiracleKlipper-Android")
@@ -122,25 +122,41 @@ class DebianRootfsInstaller(
         try {
             connection.connect()
             check(connection.responseCode in 200..299) { "Téléchargement rootfs échoué (HTTP ${connection.responseCode})." }
-            val total = connection.contentLength.toLong()
-            // Rootfs v0.1.0 is ~237 MB; reject implausibly small and unbounded response sizes.
-            check(total in MIN_ARCHIVE_BYTES..MAX_ARCHIVE_BYTES) { "Taille du rootfs inattendue : ${total} octets." }
+            // GitHub Releases may redirect to object storage where Content-Length can be
+            // absent. Use the immutable release asset size as the expected length in that case.
+            val responseLength = connection.contentLengthLong
+            check(responseLength <= 0L || responseLength == EXPECTED_ARCHIVE_SIZE) {
+                "Taille du rootfs inattendue dans la réponse HTTP : ${responseLength} octets."
+            }
+            val total = if (responseLength > 0L) responseLength else EXPECTED_ARCHIVE_SIZE
             var downloaded = 0L
+            var lastProgressBytes = 0L
+            var lastProgressAt = System.currentTimeMillis()
             connection.inputStream.use { input ->
                 FileOutputStream(temporary).use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    val buffer = ByteArray(64 * 1024)
                     while (true) {
                         val count = input.read(buffer)
                         if (count < 0) break
                         downloaded += count
-                        check(downloaded <= MAX_ARCHIVE_BYTES) { "Le téléchargement dépasse la taille maximale autorisée." }
+                        check(downloaded <= EXPECTED_ARCHIVE_SIZE) {
+                            "Le téléchargement dépasse la taille officielle autorisée (${EXPECTED_ARCHIVE_SIZE} octets)."
+                        }
                         output.write(buffer, 0, count)
-                        onProgress?.invoke(downloaded, total)
+                        val now = System.currentTimeMillis()
+                        if (downloaded - lastProgressBytes >= PROGRESS_INTERVAL_BYTES ||
+                            now - lastProgressAt >= PROGRESS_INTERVAL_MS || downloaded == total) {
+                            onProgress?.invoke(downloaded, total)
+                            lastProgressBytes = downloaded
+                            lastProgressAt = now
+                        }
                     }
                     output.fd.sync()
                 }
             }
-            check(downloaded == total) { "Téléchargement incomplet : ${downloaded}/${total} octets." }
+            check(downloaded == EXPECTED_ARCHIVE_SIZE) {
+                "Téléchargement incomplet : ${downloaded}/${EXPECTED_ARCHIVE_SIZE} octets reçus."
+            }
             check(sha256(temporary).equals(EXPECTED_SHA256, true)) {
                 "SHA-256 incorrect après téléchargement. Le fichier n'est pas conservé."
             }
@@ -162,7 +178,7 @@ class DebianRootfsInstaller(
                 digest.update(buffer, 0, count)
             }
         }
-        return digest.digest().joinToString("") { "%02x".format(Locale.US, it) }
+        return digest.digest().joinToString("") { "%02x".format(Locale.US, it.toInt() and 0xff) }
     }
 
     private fun extractTarXzSafely(archive: File, output: File) {
@@ -312,8 +328,9 @@ class DebianRootfsInstaller(
         const val ROOTFS_RELEASE_URL = "https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/tag/v0.1.0"
         const val ROOTFS_URL = "https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz"
         const val EXPECTED_SHA256 = "86d001f4c6979364473616ce82fb2ae0865848b02bfb585ee3f4c5272bb67cc9"
-        private const val MIN_ARCHIVE_BYTES = 100L * 1024L * 1024L
-        private const val MAX_ARCHIVE_BYTES = 700L * 1024L * 1024L
+        private const val EXPECTED_ARCHIVE_SIZE = 237_450_344L
+        private const val PROGRESS_INTERVAL_BYTES = 512L * 1024L
+        private const val PROGRESS_INTERVAL_MS = 500L
         private const val REQUIRED_FREE_BYTES = 1_500L * 1024L * 1024L
     }
 }
