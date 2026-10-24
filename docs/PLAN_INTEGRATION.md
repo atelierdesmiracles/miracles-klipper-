@@ -1,10 +1,11 @@
 # Plan d'intégration — Miracle Klipper
 
 ## Phase 1 — Base et identité
-- [x] Créer une branche dédiée `feat/octo4a-to-miracle-klipper`.
-- [ ] Importer les sources de référence Octo4a en préservant les notices AGPL.
-- [ ] Remplacer nom, identité visuelle, icône adaptative, textes et documentation par Miracle Klipper.
-- [ ] Définir un identifiant Android distinct pour éviter d'écraser Octo4a.
+- [x] Travailler sur la branche existante `feat/octo4a-to-miracle-klipper` sans créer de branche supplémentaire.
+- [x] Importer la base Android de référence Octo4a en préservant les fichiers de licence présents.
+- [x] Nom affiché et principaux textes d'accueil/statut adaptés en français.
+- [ ] Refonte complète de l'identité visuelle et de l'icône.
+- [ ] Définir un identifiant Android distinct pour éviter d'écraser Octo4a, après analyse de migration.
 
 ## Phase 2 — Retrait d'OctoPrint
 - [ ] Retirer le téléchargement de versions OctoPrint et les commandes/API propres à OctoPrint.
@@ -30,6 +31,9 @@
 - [ ] Workflow GitHub Actions pour compiler APK et publier les artefacts.
 - [ ] Documentation de compatibilité et de récupération.
 - [ ] Release uniquement après tests réels.
+
+## Cahier des charges consolidé
+La liste exhaustive des modifications et leur état se trouve dans [`CAHIER_DES_CHARGES_COMPLET.md`](CAHIER_DES_CHARGES_COMPLET.md).
 
 ## Blocage technique à traiter
 Le bootstrap produit un rootfs Debian `.tar.xz` avec Klipper, Moonraker, Mainsail et des services systemd. Octo4a attend un ZIP de bootstrap Proot avec un entrypoint et une disposition spécifique à OctoPrint. Changer uniquement l'URL de téléchargement ne marcherait pas : la couche runtime et les services doivent être adaptés et testés.
