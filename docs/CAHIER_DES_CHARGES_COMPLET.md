@@ -13,13 +13,14 @@ Ce document rassemble les demandes exprimées pour la transformation d'Octo4a en
 - [ ] Contrôler l'accessibilité, les tailles d'écran et les orientations.
 
 ## 2. Environnement Debian
-- [ ] Utiliser le rootfs Debian Bookworm ARM64 versionné fourni par le dépôt bootstrap.
-- [ ] Télécharger depuis une source versionnée, vérifier le SHA-256 avant extraction.
-- [ ] Contrôler l'espace disque, l'architecture et l'intégrité du rootfs.
-- [ ] Extraire dans un répertoire temporaire et activer uniquement après validation.
-- [ ] Reprise sur erreur, journalisation, réinstallation et sauvegarde de la configuration.
-- [ ] Adapter les chemins et les permissions au stockage privé Android et à l'environnement PRoot.
-- [ ] Ne pas supposer que systemd fonctionne comme PID 1 dans PRoot.
+- [x] Épingler le rootfs Debian Bookworm ARM64 `v0.1.0` du dépôt bootstrap officiel.
+- [x] Intégrer le téléchargement depuis une URL versionnée et le contrôle SHA-256 avant extraction.
+- [x] Contrôler la taille du téléchargement, les chemins TAR et le contenu attendu du rootfs.
+- [x] Extraire dans un dossier temporaire puis activer après validation des fichiers Klipper, Moonraker et Mainsail.
+- [x] Préserver `printer.cfg` et `moonraker.conf` lors du remplacement d'un rootfs existant.
+- [x] Documenter les chemins exacts du bootstrap et les limites de systemd dans PRoot.
+- [ ] Tester l'extracteur sur l'archive publiée : notamment liens symboliques Debian, droits Unix, taille décompressée et espace disque.
+- [ ] Finaliser reprise sur erreur, journalisation, estimation de l'espace avant installation et migration des configurations.
 
 ## 3. Services d'impression
 - [ ] Lancer Klipper, Moonraker et Nginx/Mainsail depuis un superviseur adapté à Android.
