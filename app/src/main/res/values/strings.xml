@@ -90,4 +90,6 @@
     <string name="runtime_start_button">Démarrer Miracle Klipper</string>
     <string name="runtime_missing_assets">Le runtime PRoot ARM64 est absent de cet APK. Installe une compilation récente depuis GitHub Actions.</string>
     <string name="runtime_start_failed">Impossible de démarrer Miracle Klipper : %1$s</string>
+    <string name="webinterface_unavailable">Mainsail est inaccessible. Vérifie que Miracle Klipper est démarré, puis réessaie.</string>
+    <string name="webinterface_retry">Réessayer</string>
 </resources>
