@@ -84,4 +84,5 @@
     <string name="bootstrap_install_success">Rootfs téléchargé, vérifié et installé.</string>
     <string name="bootstrap_install_failed">Échec de l’installation : %1$s</string>
     <string name="bootstrap_runtime_notice">L’installation du rootfs est distincte du démarrage des services Klipper/Moonraker. La compatibilité PRoot doit être validée avant toute impression.</string>
-    </resources>
+        <string name="bootstrap_unsupported_device">Cet appareil ne prend pas en charge le rootfs Debian ARM64. Un téléphone Android 64 bits (arm64-v8a) est requis.</string>
+</resources>
