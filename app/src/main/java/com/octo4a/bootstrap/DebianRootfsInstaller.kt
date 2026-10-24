@@ -81,13 +81,17 @@ class DebianRootfsInstaller(
             "Rootfs invalide : configuration Moonraker manquante."
         }
 
-        // Preserve printer-specific configuration across rootfs refreshes.
-        val activeConfig = File(active, "home/klipper/printer_data/config")
-        val stagedConfig = File(staging, "home/klipper/printer_data/config")
-        if (activeConfig.isDirectory) {
-            listOf("printer.cfg", "moonraker.conf").forEach { name ->
-                val previous = File(activeConfig, name)
-                if (previous.isFile) copyChecked(previous, File(stagedConfig, name))
+        // Preserve user configuration, logs, and G-code while replacing the immutable rootfs.
+        val activeData = File(active, "home/klipper/printer_data")
+        val stagedData = File(staging, "home/klipper/printer_data")
+        if (activeData.isDirectory) {
+            listOf("config/printer.cfg", "config/moonraker.conf").forEach { relative ->
+                val previous = File(activeData, relative)
+                if (previous.isFile) copyChecked(previous, File(stagedData, relative))
+            }
+            listOf("gcodes", "logs").forEach { directory ->
+                val previous = File(activeData, directory)
+                if (previous.isDirectory) copyDirectoryContents(previous, File(stagedData, directory))
             }
         }
 
@@ -260,6 +264,24 @@ class DebianRootfsInstaller(
         try {
             android.system.Os.lstat(absolutePath).let { it.st_mode and android.system.OsConstants.S_IFMT == android.system.OsConstants.S_IFLNK }
         } catch (_: Exception) { false }
+
+    private fun copyDirectoryContents(source: File, destination: File) {
+        val sourceRoot = source.canonicalPath
+        if (!destination.exists() && !destination.mkdirs()) {
+            error("Impossible de créer " + destination.absolutePath)
+        }
+        (source.listFiles() ?: emptyArray()).forEach { child ->
+            val childCanonical = child.canonicalPath
+            if (childCanonical != sourceRoot && !childCanonical.startsWith(sourceRoot + File.separator)) {
+                return@forEach
+            }
+            val target = File(destination, child.name)
+            when {
+                child.isDirectory -> copyDirectoryContents(child, target)
+                child.isFile -> copyChecked(child, target)
+            }
+        }
+    }
 
     private fun copyChecked(source: File, destination: File) {
         destination.parentFile?.mkdirs()
