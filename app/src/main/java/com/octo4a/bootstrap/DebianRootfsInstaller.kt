@@ -47,6 +47,10 @@ class DebianRootfsInstaller(
 
         val archive = File(downloads, "miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz")
         val expectedSha = EXPECTED_SHA256
+        val availableBytes = downloads.usableSpace
+        check(availableBytes > REQUIRED_FREE_BYTES) {
+            "Espace libre insuffisant. Libérer au moins ${REQUIRED_FREE_BYTES / (1024 * 1024)} Mo avant l’installation."
+        }
         downloadPinnedRootfs(archive)
         val actualSha = sha256(archive)
         check(actualSha.equals(expectedSha, ignoreCase = true)) {
@@ -66,6 +70,12 @@ class DebianRootfsInstaller(
         }
         check(File(staging, "var/www/mainsail/index.html").isFile) {
             "Rootfs invalide : fichiers Mainsail manquants."
+        }
+        check(File(staging, "opt/klipper-venv/bin/python").canExecute()) {
+            "Rootfs invalide : environnement Python Klipper absent."
+        }
+        check(File(staging, "opt/moonraker-venv/bin/python").canExecute()) {
+            "Rootfs invalide : environnement Python Moonraker absent."
         }
         check(File(staging, "home/klipper/printer_data/config/moonraker.conf").isFile) {
             "Rootfs invalide : configuration Moonraker manquante."
@@ -261,5 +271,6 @@ class DebianRootfsInstaller(
         const val EXPECTED_SHA256 = "86d001f4c6979364473616ce82fb2ae0865848b02bfb585ee3f4c5272bb67cc9"
         private const val MIN_ARCHIVE_BYTES = 100L * 1024L * 1024L
         private const val MAX_ARCHIVE_BYTES = 700L * 1024L * 1024L
+        private const val REQUIRED_FREE_BYTES = 1_500L * 1024L * 1024L
     }
 }
