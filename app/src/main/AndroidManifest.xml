@@ -56,6 +56,7 @@
         <activity android:name=".ui.WebinterfaceActivity">
         </activity>
         <activity android:name=".ui.InstallationActivity"/>
+        <service android:name=".service.MiracleKlipperService" android:exported="false" />
         <service android:name=".service.OctoPrintService">
 
 
