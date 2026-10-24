@@ -57,7 +57,7 @@ class InitialActivity : AppCompatActivity() {
         val existingRootfs = File(filesDir, "miracle-klipper/rootfs")
         if (File(existingRootfs, "opt/klipper/klippy/klippy.py").isFile) {
             setupStatus.text = getString(R.string.bootstrap_installed_runtime_pending)
-            setupButton.text = getString(R.string.bootstrap_reinstall_button)
+            setupButton.text = getString(R.string.runtime_start_button)
         } else {
             setupStatus.text = getString(R.string.bootstrap_not_installed_status)
             setupButton.text = getString(R.string.landing_install)
@@ -67,12 +67,54 @@ class InitialActivity : AppCompatActivity() {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DebianRootfsInstaller.ROOTFS_RELEASE_URL)))
         }
         setupButton.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.bootstrap_confirm_title)
-                .setMessage(R.string.bootstrap_confirm_message)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(R.string.action_ok) { _, _ -> installRootfs() }
-                .show()
+            if (File(existingRootfs, "opt/klipper/klippy/klippy.py").isFile) {
+                startMiracleKlipper()
+            } else {
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.bootstrap_confirm_title)
+                    .setMessage(R.string.bootstrap_confirm_message)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.action_ok) { _, _ -> installRootfs() }
+                    .show()
+            }
+        }
+    }
+
+    private fun startMiracleKlipper() {
+        val nativeDir = File(applicationInfo.nativeLibraryDir)
+        val runtimeFiles = listOf(
+            "libproroot.so",
+            "libproroot-runtime.so",
+            "libproroot-bridge.so",
+            "libproroot-linker.so",
+            "libproroot-stub-loader.so"
+        )
+        if (!runtimeFiles.all { File(nativeDir, it).isFile }) {
+            setupStatus.text = getString(R.string.runtime_missing_assets)
+            Toast.makeText(this, getString(R.string.runtime_missing_assets), Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val rootfs = File(filesDir, "miracle-klipper/rootfs")
+        val config = File(rootfs, "home/klipper/printer_data/config")
+        if (!File(config, "printer.cfg").isFile || !File(config, "moonraker.conf").isFile) {
+            setupStatus.text = "Configuration Klipper/Moonraker absente dans le rootfs. Vérifie le bootstrap Debian."
+            return
+        }
+
+        setupButton.isEnabled = false
+        setupStatus.text = getString(R.string.status_starting)
+        val serviceIntent = Intent(this, com.octo4a.service.MiracleKlipperService::class.java)
+            .setAction(com.octo4a.service.MiracleKlipperService.ACTION_START)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(serviceIntent)
+            else startService(serviceIntent)
+            setupStatus.text = getString(R.string.status_starting_subtitle)
+            Toast.makeText(this, getString(R.string.runtime_notification_starting), Toast.LENGTH_LONG).show()
+        } catch (error: Exception) {
+            setupStatus.text = getString(R.string.runtime_start_failed, error.message ?: "erreur inconnue")
+        } finally {
+            setupButton.isEnabled = true
         }
     }
 
