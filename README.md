@@ -2,7 +2,7 @@
 
 Application Android basée sur le projet de référence [Octo4a](https://github.com/feelfreelinux/octo4a), dont l'objectif est d'héberger **Klipper + Moonraker + Mainsail** à partir du bootstrap Debian maintenu par Atelier des Miracles.
 
-> **État actuel : migration Android à effectuer.** Le dépôt contient le plan, les contrats et les workflows d'import/build. Les sources Android Octo4a ne sont pas encore importées dans cette branche ; aucun APK Miracle Klipper n'a donc été compilé ou validé.
+> **État actuel : compilation debug validée par GitHub Actions.** Les sources Android sont importées et l’APK debug est disponible comme artefact temporaire de CI. Cela valide la compilation, pas encore le fonctionnement Klipper/Moonraker sur téléphone réel. L’application reste en cours de conversion depuis Octo4a.
 
 ## Bootstrap Debian publié
 
@@ -46,6 +46,12 @@ Le client doit :
 - Application : https://github.com/atelierdesmiracles/miracles-klipper-
 - Référence amont : https://github.com/feelfreelinux/octo4a
 - Bootstrap Debian : https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/
+
+## Compilation actuelle
+
+Le workflow [Miracle Klipper Android Build](https://github.com/atelierdesmiracles/miracles-klipper-/actions/runs/40098128583) a compilé l’APK debug avec succès. [Télécharger l’artefact de compilation](https://github.com/atelierdesmiracles/miracles-klipper-/actions/runs/40098128583) (disponibilité temporaire via GitHub Actions).
+
+La compilation de release reste à vérifier séparément ; aucune release publique APK n’est annoncée à ce stade.
 
 ## Workflow d'import et compilation
 
