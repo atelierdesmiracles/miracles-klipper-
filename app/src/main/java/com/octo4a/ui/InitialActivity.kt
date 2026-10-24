@@ -28,6 +28,7 @@ class InitialActivity : AppCompatActivity() {
     private lateinit var openReleaseButton: Button
     private lateinit var openMainsailButton: Button
     private lateinit var diagnosticsButton: Button
+    private lateinit var printerConfigButton: Button
     private var installJob: Future<*>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +43,8 @@ class InitialActivity : AppCompatActivity() {
         openMainsailButton = findViewById(R.id.openMainsailButton)
         diagnosticsButton = findViewById(R.id.runtimeDiagnosticsButton)
         diagnosticsButton.setOnClickListener { showRuntimeDiagnostics() }
+        printerConfigButton = findViewById(R.id.printerConfigButton)
+        printerConfigButton.setOnClickListener { showPrinterConfigEditor() }
 
         val rooted = isDeviceRooted()
         Toast.makeText(
@@ -64,6 +67,7 @@ class InitialActivity : AppCompatActivity() {
             setupStatus.text = getString(R.string.bootstrap_installed_runtime_pending)
             setupButton.text = getString(R.string.runtime_start_button)
             openMainsailButton.visibility = android.view.View.VISIBLE
+            printerConfigButton.visibility = android.view.View.VISIBLE
         } else {
             setupStatus.text = getString(R.string.bootstrap_not_installed_status)
             setupButton.text = getString(R.string.landing_install)
@@ -87,6 +91,91 @@ class InitialActivity : AppCompatActivity() {
                     .show()
             }
         }
+    }
+
+    /**
+     * Lets the user provide a printer-specific configuration. Never generates a
+     * pretend printer.cfg: MCU paths, pins and kinematics must match real hardware.
+     */
+    private fun showPrinterConfigEditor() {
+        val rootfs = File(filesDir, "miracle-klipper/rootfs")
+        val configDir = File(rootfs, "home/klipper/printer_data/config")
+        if (!configDir.isDirectory() && !configDir.mkdirs()) {
+            Toast.makeText(this, "Impossible de créer le dossier de configuration.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val configFile = File(configDir, "printer.cfg")
+        val editor = android.widget.EditText(this).apply {
+            minLines = 14
+            maxLines = 24
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            setTextIsSelectable(false)
+            typeface = android.graphics.Typeface.MONOSPACE
+            setText(
+                if (configFile.isFile) configFile.readText()
+                else "# Colle ici le printer.cfg correspondant exactement à ton imprimante.\n" +
+                    "# Ne démarre pas une impression avant d'avoir vérifié la carte, les broches et les déplacements.\n"
+            )
+            setPadding(28, 20, 28, 20)
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(editor) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.printer_config_title)
+            .setMessage(R.string.printer_config_instructions)
+            .setView(scroll)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.printer_config_validate, null)
+            .setPositiveButton(R.string.printer_config_save, null)
+            .create().also { dialog ->
+                dialog.setOnShowListener {
+                    dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                        val validation = validatePrinterConfig(editor.text.toString())
+                        AlertDialog.Builder(this)
+                            .setTitle(R.string.printer_config_validation_title)
+                            .setMessage(validation)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
+                    }
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val content = editor.text.toString()
+                        val validation = validatePrinterConfig(content)
+                        if (content.isBlank() || content.trimStart().startsWith("# Colle ici") ||
+                            validation.contains("ERREUR")) {
+                            Toast.makeText(this, validation, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
+                        }
+                        try {
+                            if (configFile.isFile) {
+                                val backup = File(configDir, "printer.cfg.backup-${System.currentTimeMillis()}")
+                                configFile.copyTo(backup, overwrite = false)
+                            }
+                            configFile.writeText(content.trimEnd() + "\n")
+                            Toast.makeText(this, getString(R.string.printer_config_saved), Toast.LENGTH_LONG).show()
+                            dialog.dismiss()
+                        } catch (error: Exception) {
+                            Toast.makeText(this, "Échec de sauvegarde : ${error.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+                dialog.show()
+            }
+    }
+
+    private fun validatePrinterConfig(content: String): String {
+        val sections = content.lineSequence()
+            .map { it.trim() }
+            .filter { it.startsWith("[") && it.endsWith("]") }
+            .map { it.substring(1, it.length - 1).trim().substringBefore(" ").lowercase() }
+            .toSet()
+        val errors = mutableListOf<String>()
+        if (content.isBlank()) errors += "ERREUR : le fichier est vide."
+        if (sections.none { it == "printer" }) errors += "ERREUR : section [printer] absente."
+        if (sections.none { it == "mcu" || it.startsWith("mcu ") }) errors += "ERREUR : section [mcu] absente."
+        if (sections.none { it.startsWith("stepper_") }) errors += "ERREUR : aucune section [stepper_x/y/z] détectée."
+        if (errors.isNotEmpty()) return errors.joinToString("\n")
+        return "Contrôle structurel de base réussi : [printer], [mcu] et au moins un moteur détectés.\n\n" +
+            "Ce contrôle ne valide pas les broches, le modèle de carte, les limites de déplacement ni la compatibilité réelle. " +
+            "Vérifie le fichier pour ton imprimante avant toute impression."
     }
 
     private fun showRuntimeDiagnostics() {
@@ -201,6 +290,7 @@ class InitialActivity : AppCompatActivity() {
                     setupStatus.text = getString(R.string.bootstrap_installed_runtime_pending)
                     setupButton.text = getString(R.string.runtime_start_button)
                     openMainsailButton.visibility = android.view.View.VISIBLE
+                    printerConfigButton.visibility = android.view.View.VISIBLE
                     Toast.makeText(this, getString(R.string.bootstrap_install_success), Toast.LENGTH_LONG).show()
                 }
             },
