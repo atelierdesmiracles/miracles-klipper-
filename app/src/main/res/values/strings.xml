@@ -104,4 +104,9 @@
     <string name="printer_config_save">Enregistrer</string>
     <string name="printer_config_validation_title">Contrôle du fichier</string>
     <string name="printer_config_saved">printer.cfg enregistré. Vérifie sa compatibilité matérielle avant de lancer un mouvement.</string>
+    <string name="moonraker_config_button">Configurer Moonraker</string>
+    <string name="moonraker_config_title">Configuration de Moonraker</string>
+    <string name="moonraker_config_instructions">Modifie moonraker.conf uniquement si tu sais quels paramètres ton installation exige. Une sauvegarde sera créée avant tout remplacement.</string>
+    <string name="moonraker_config_saved">moonraker.conf enregistré. Redémarre Miracle Klipper pour appliquer les changements.</string>
+    <string name="moonraker_config_validation_title">Contrôle Moonraker</string>
 </resources>
