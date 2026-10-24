@@ -326,8 +326,12 @@ class DebianRootfsInstaller(
     }
 
     private fun deleteRecursivelyChecked(file: File) {
-        if (!file.exists()) return
-        if (file.isDirectory) file.listFiles()?.forEach { deleteRecursivelyChecked(it) }
+        val isSymlink = file.isSymbolicLinkCompat()
+        // File.exists() returns false for dangling absolute symlinks in a Debian rootfs.
+        if (!file.exists() && !isSymlink) return
+        if (file.isDirectory && !isSymlink) {
+            file.listFiles()?.forEach { deleteRecursivelyChecked(it) }
+        }
         if (!file.delete()) error("Impossible de supprimer ${file.absolutePath}")
     }
 
