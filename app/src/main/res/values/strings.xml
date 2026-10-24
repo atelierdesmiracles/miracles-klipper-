@@ -1,19 +1,19 @@
 <resources>
     <string name="app_name">Miracle Klipper</string>
-    <string name="landing_install">Install OctoPrint</string>
-    <string name="landing_no_installation">No existing installation detected</string>
+    <string name="landing_install">Préparer Miracle Klipper</string>
+    <string name="landing_no_installation">Environnement Miracle Klipper</string>
     <string name="landing_description">This application will install OctoPrint server on your android device. Please
         make sure that you have at least 800mb of storage available. You will also need an OTG cable in order to connect
         your phone to your 3d printer.\n\nThis project is an unofficial product, not affiliated with OctoPrint project.
     </string>
-    <string name="installation_step_downloading">Downloading bootstrap (%1$s)…</string>
-    <string name="installation_step_extracting">Extracting bootstrap (%1$s)…</string>
-    <string name="installation_step_bootup">Booting OctoPrint for the first time…</string>
+    <string name="installation_step_downloading">Téléchargement de l’environnement (%1$s)…</string>
+    <string name="installation_step_extracting">Extraction de l’environnement (%1$s)…</string>
+    <string name="installation_step_bootup">Préparation de Miracle Klipper…</string>
     <string name="installation_step_done">Installation complete</string>
-    <string name="status_starting">OctoPrint is starting…</string>
-    <string name="status_stopped">OctoPrint is stopped</string>
-    <string name="status_running">OctoPrint is running</string>
-    <string name="status_stopped_start">tap to start the server</string>
+    <string name="status_starting">Miracle Klipper démarre…</string>
+    <string name="status_stopped">Miracle Klipper est arrêté</string>
+    <string name="status_running">Miracle Klipper est démarré</string>
+    <string name="status_stopped_start">Touchez pour démarrer le serveur</string>
     <string name="status_starting_subtitle">this could take a couple of minutes</string>
     <string name="notification_status_running">Server is running</string>
     <string name="notification_status_starting">Server is starting up…</string>
@@ -27,8 +27,8 @@
     <string name="camserver_enable">Enable in settings</string>
     <string name="connection_not_connected">Printer not connected</string>
     <string name="connection_connected">Printer is connected</string>
-    <string name="connection_otg_cable">Connect your printer using OTG cable</string>
-    <string name="turn_off_bat_optimization">Please turn off battery optimization</string>
+    <string name="connection_otg_cable">Connectez l’imprimante avec un câble USB OTG</string>
+    <string name="turn_off_bat_optimization">Autorisez Miracle Klipper à fonctionner en arrière-plan</string>
     <string name="update_available">New update available</string>
     <string name="update_available_message">A new version %1$s of the app is available. Please update the app to access
         newest the features. Please download and install the asset ending with .apk.
@@ -73,5 +73,7 @@
     <string name="ip_address_copied_to_clipboard">IP address copied to clipboard!</string>
     <string name="unofficial_app_note">This is an unofficial app, not affiliated with OctoPrint project. Use at your own risk.</string>
     <string name="unofficial_app_thanks">Thanks for using this app.</string>
-    <string name="camera_preview_manual_af">Manual camera focus</string>
+    <string name="camera_preview_manual_af">Mise au point manuelle de la caméra</string>
+    <string name="root_status_rooted">Diagnostic Android : accès root détecté. Certaines fonctions système peuvent être disponibles, mais le fonctionnement dépend de l’appareil.</string>
+    <string name="root_status_not_rooted">Diagnostic Android : aucun accès root détecté. Miracle Klipper doit fonctionner sans root lorsque les permissions Android et l’environnement Linux le permettent.</string>
 </resources>
