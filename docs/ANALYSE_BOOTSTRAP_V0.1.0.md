@@ -6,9 +6,9 @@ Date de vérification : 24 octobre 2026
 
 La release v0.1.0 publie une seule archive :
 - `miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz`
-- SHA-256 annoncé par GitHub Releases : `05bb0f9dfc90091aad7312620e47aceef788f6b26e46a499112ea81e72af30d0`
+- SHA-256 annoncé par GitHub Releases : `86d001f4c6979364473616ce82fb2ae0865848b02bfb585ee3f4c5272bb67cc9`
 
-La release n'inclut pas encore un artefact armhf ou amd64. L'intégration Android initiale doit donc refuser les appareils qui n'exposent pas l'ABI `arm64-v8a`, sans tenter une conversion implicite.
+La release v0.1.0 publiée expose le fichier rootfs de 237 450 344 octets avec le digest SHA-256 `86d001f4c6979364473616ce82fb2ae0865848b02bfb585ee3f4c5272bb67cc9`. La release n'inclut pas encore un artefact armhf ou amd64. L'intégration Android initiale doit donc refuser les appareils qui n'exposent pas l'ABI `arm64-v8a`, sans tenter une conversion implicite.
 
 ## Blocage de compatibilité à résoudre avant de démarrer les services
 
