@@ -62,9 +62,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f app/gradlew
-          test -f app/settings.gradle -o -f app/settings.gradle.kts
-          test -f app/build.gradle -o -f app/build.gradle.kts
+          test -f ./gradlew
+          test -d ./gradle
+          test -d ./app
+          test -f ./settings.gradle -o -f ./settings.gradle.kts
 
       - name: Commit imported sources
         shell: bash
