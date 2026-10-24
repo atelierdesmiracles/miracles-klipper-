@@ -1,22 +1,34 @@
-# Phase 3 — Contrat de téléchargement du bootstrap
+# Phase 3 — Contrat d'intégration du bootstrap Debian v0.1.0
 
-Le fichier `docs/BOOTSTRAP_MANIFEST_EXAMPLE.json` est un exemple de contrat, pas un manifeste de production. Les champs `REPLACE_...` doivent être remplacés par des URL d'assets de release réellement publiés et des sommes SHA-256 calculées lors du build.
+## Release publiée
 
-## Règles d'implémentation côté Android
+La première release est publiée :
+- Version : `v0.1.0`
+- Release : https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/tag/v0.1.0
+- Artefact : `miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz`
+- SHA-256 : `0fe5ec04fca882c8531a60169b795e6b0477229af77d6d75aedcff177e2ff56a`
+- Somme publiée : https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz.sha256
+- Archive : https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz
 
-1. Récupérer un manifeste publié depuis une URL HTTPS stable et versionnée.
-2. Valider `schema_version`, `product`, `bootstrap_version` et la présence des composants requis.
-3. Faire correspondre l'ABI Android à une seule architecture prise en charge. Ne jamais choisir l'archive seulement sur le nom du fichier.
-4. Télécharger vers un fichier temporaire et vérifier la taille et le SHA-256 avant de l'ouvrir.
-5. Ne pas extraire le tar directement avec une bibliothèque qui autorise les chemins absolus ou `..`. Refuser aussi les liens qui sortiraient du répertoire de staging.
-6. Extraire dans un dossier temporaire sur un stockage compatible avec les permissions Linux attendues ; ne pas utiliser le stockage partagé Android pour le rootfs.
-7. Activer le nouveau rootfs uniquement après vérification complète. Conserver l'ancien environnement et les données utilisateur pour permettre le retour arrière.
-8. Journaliser l'erreur réelle et ne pas afficher « installation réussie » avant que les composants soient démarrés et vérifiés.
+La release contient actuellement uniquement une archive ARM64 (Debian Bookworm rootfs). Ne pas proposer armhf/amd64 à partir de cette version.
 
-## Architecture et runtime
+## Composants et limites connues
 
-La disponibilité de `arm64-v8a` dans Android ne garantit pas à elle seule que le rootfs fonctionnera : il faut vérifier les ABI du runtime, la libc et les dépendances. Le rootfs Debian utilise des services systemd ; l'intégration doit implémenter et tester une stratégie de supervision compatible avec le runtime retenu. Ne pas lancer les scripts de service arbitraires depuis l'archive sans vérification.
+Le rootfs fournit Klipper, Moonraker, Mainsail et Nginx. Mainsail est publié sur HTTP/80. Moonraker est configuré par défaut sur `127.0.0.1:7125`. Le paquet est un rootfs, **pas** une image disque amorçable ou un APK Android.
+
+Le rootfs utilise des services systemd, tandis que l'application Android devra choisir et tester une stratégie de supervision adaptée à son environnement (par exemple un init systemd réellement disponible ou un lancement supervisé de services compatibles). Ne pas supposer que systemd peut devenir PID 1 dans Android/PRoot. La connexion série Klipper devra être reliée au périphérique USB OTG sélectionné dans l'application.
+
+## Contrat client recommandé
+
+1. Utiliser exclusivement les URL HTTPS versionnées ci-dessus pour `v0.1.0`.
+2. Choisir l'artefact seulement pour l'ABI Android `arm64-v8a` et refuser les autres ABI tant qu'aucun artefact correspondant n'est publié.
+3. Télécharger dans un fichier temporaire, afficher la progression et annuler proprement en cas de perte réseau.
+4. Vérifier le SHA-256 attendu avant extraction.
+5. Inspecter les entrées tar avant écriture ; rejeter chemins absolus, segments `..` et liens sortant du répertoire cible. Extraire dans un espace privé Linux avec propriétaire/droits compatibles.
+6. Ne jamais écraser les données utilisateur `printer_data` lors d'une mise à jour. Conserver une version précédente, rendre la bascule transactionnelle, et prévoir une restauration en cas d'échec.
+7. Ne pas afficher une installation réussie avant d'avoir vérifié la présence de Klipper, Moonraker et Mainsail et leur état réel.
+8. N'exposer ni Moonraker ni des API d'administration sans authentification et contrôle d'accès adaptés.
 
 ## État
 
-Le dépôt bootstrap n'expose actuellement qu'un script de build et de validation du rootfs. Tant qu'une release contenant les artefacts et les checksums n'est pas publiée, les URL du manifeste restent volontairement des placeholders et aucune installation automatique ne doit être activée.
+Ce document fixe les métadonnées de la release, mais ne signifie pas que l'application Android sait déjà installer ou exécuter ce rootfs. Le code Android doit être importé, puis son moteur d'installation OctoPrint retiré et remplacé. La compatibilité runtime et USB doit être testée sur un appareil physique avant une release APK.
