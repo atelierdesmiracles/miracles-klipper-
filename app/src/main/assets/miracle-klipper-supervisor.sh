@@ -1,6 +1,6 @@
 #!/bin/sh
 # Miracle Klipper supervisor for the official Debian Bookworm rootfs.
-# Must run INSIDE the extracted rootfs (via PRoot); does not require systemd PID 1.
+# Runs inside PRoot; systemd is not PID 1 here.
 set -eu
 
 ROOT="${MIRACLE_KLIPPER_ROOT:-/}"
@@ -50,8 +50,6 @@ for name in nginx klipper moonraker; do
   rm -f "$pidfile"
 done
 
-# Use Nginx configuration shipped in the rootfs. The API should remain bound
-# to loopback and be reached through the configured Mainsail reverse proxy.
 export HOME="$KLIPPER_USER_HOME"
 export PYTHONUNBUFFERED=1
 
@@ -71,15 +69,35 @@ echo "$!" > "$PIDDIR/moonraker.pid"
 cleanup() { stop_services; wait 2>/dev/null || true; }
 trap cleanup INT TERM HUP
 
+klipper_warning_logged=0
+echo "Miracle Klipper lancé. Mainsail reste disponible même si printer.cfg doit encore être configuré."
 while :; do
-  for name in nginx klipper moonraker; do
+  for name in nginx moonraker; do
     pidfile="$PIDDIR/$name.pid"
     pid="$(cat "$pidfile" 2>/dev/null || true)"
     case "$pid" in ''|*[!0-9]*) echo "PID $name absent; arrêt du superviseur." >&2; exit 4 ;; esac
     if ! kill -0 "$pid" 2>/dev/null; then
-      echo "$name s'est arrêté; vérifier les journaux dans $LOGS." >&2
+      echo "$name s'est arrêté; vérifier $LOGS." >&2
       exit 5
     fi
   done
+
+  # Klipper commonly exits until the printer-specific MCU/pin configuration
+  # is completed. Keep Moonraker and Mainsail available so the user can inspect
+  # logs and edit the configuration instead of losing the entire web UI.
+  pidfile="$PIDDIR/klipper.pid"
+  pid="$(cat "$pidfile" 2>/dev/null || true)"
+  if [ "$klipper_warning_logged" -eq 0 ]; then
+    case "$pid" in
+      ''|*[!0-9]*) echo "Klipper n'a pas de PID valide; Mainsail reste actif." >&2; klipper_warning_logged=1 ;;
+      *)
+        if ! kill -0 "$pid" 2>/dev/null; then
+          echo "Klipper s'est arrêté. Vérifier $LOGS/klippy.log et compléter $CONFIG/printer.cfg. Moonraker/Mainsail restent actifs." >&2
+          rm -f "$pidfile"
+          klipper_warning_logged=1
+        fi
+        ;;
+    esac
+  fi
   sleep 2
 done
