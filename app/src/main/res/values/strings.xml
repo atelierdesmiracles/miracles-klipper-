@@ -92,4 +92,8 @@
     <string name="runtime_start_failed">Impossible de démarrer Miracle Klipper : %1$s</string>
     <string name="webinterface_unavailable">Mainsail est inaccessible. Vérifie que Miracle Klipper est démarré, puis réessaie.</string>
     <string name="webinterface_retry">Réessayer</string>
+    <string name="runtime_diagnostics">Diagnostic des services</string>
+    <string name="runtime_diagnostics_title">Diagnostic Miracle Klipper</string>
+    <string name="runtime_diagnostics_empty">Aucun journal disponible pour le moment. Démarre le serveur, puis actualise ce diagnostic.</string>
+    <string name="runtime_diagnostics_refresh">Actualiser</string>
 </resources>
