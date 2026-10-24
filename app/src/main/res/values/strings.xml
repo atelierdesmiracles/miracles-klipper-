@@ -2,7 +2,7 @@
     <string name="app_name">Miracle Klipper</string>
     <string name="landing_install">Préparer Miracle Klipper</string>
     <string name="landing_no_installation">Environnement Miracle Klipper</string>
-    <string name="landing_description">Miracle Klipper prépare un environnement Linux destiné à exécuter Klipper, Moonraker et Mainsail sur votre appareil Android. Prévoyez suffisamment d’espace libre et un câble USB OTG compatible pour connecter votre imprimante 3D.\\n\\nL’intégration complète des services est en cours de développement.</string>
+    <string name="landing_description">Prépare un environnement Debian ARM64 pour Klipper, Moonraker et Mainsail sur Android. Prévois au moins 1,5 Go d’espace libre, une connexion stable et un câble USB OTG compatible. Le fonctionnement réel dépend aussi de la compatibilité du téléphone et du contrôleur de l’imprimante.</string>
     <string name="installation_step_downloading">Téléchargement de l’environnement (%1$s)…</string>
     <string name="installation_step_extracting">Extraction de l’environnement (%1$s)…</string>
     <string name="installation_step_bootup">Préparation de Miracle Klipper…</string>
@@ -76,7 +76,7 @@
     <string name="open_bootstrap_release">Voir le bootstrap Debian</string>
     <string name="open_mainsail">Ouvrir l’interface Mainsail</string>
     <string name="bootstrap_not_installed_status">Le rootfs Debian officiel n’est pas encore installé.</string>
-    <string name="bootstrap_installed_runtime_pending">Rootfs installé et vérifié. Le lancement des services attend l’intégration du runtime PRoot.</string>
+    <string name="bootstrap_installed_runtime_pending">Rootfs installé et vérifié. Tu peux démarrer le serveur, puis ouvrir Mainsail. Le fonctionnement reste à confirmer sur ton appareil.</string>
     <string name="bootstrap_reinstall_button">Réinstaller le rootfs Debian</string>
     <string name="bootstrap_confirm_title">Installer Debian Bookworm ARM64</string>
     <string name="bootstrap_confirm_message">Télécharger environ 237 Mo depuis la release officielle, vérifier le SHA-256, puis installer l’environnement dans le stockage privé de Miracle Klipper. Une connexion Wi-Fi est recommandée.</string>
