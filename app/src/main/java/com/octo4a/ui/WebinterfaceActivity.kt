@@ -15,7 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.octo4a.R
 import kotlinx.android.synthetic.main.activity_webinterface.*
 
-const val WEBINTERFACE_ADDRESS = "127.0.0.1:5000"
+const val WEBINTERFACE_ADDRESS = "127.0.0.1"
 
 class WebinterfaceActivity : AppCompatActivity() {
 
