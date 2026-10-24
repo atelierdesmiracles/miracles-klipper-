@@ -17,18 +17,18 @@
 - [ ] Publier un artefact versionné avec architecture et SHA-256.
 - [ ] Vérifier checksum, architecture et espace disque côté application.
 - [ ] Extraire sans traversée de chemin dans un répertoire temporaire, puis activer atomiquement.
-- [ ] Adapter le démarrage des services à Android/Proot : ne pas supposer que systemd fonctionne comme PID 1.
+- [x] Ajouter un superviseur sans dépendance à systemd PID 1 et un service Android de premier plan qui lance le rootfs via PRoot (compilation CI requise pour inclure les binaires).
 - [ ] Mapper la connexion USB OTG au port série configuré dans printer.cfg.
 - [ ] Exposer Mainsail sur le réseau local et garder Moonraker derrière un proxy, sans l'ouvrir directement à Internet.
 
 ## Phase 4 — Vérifications
-- [ ] Tests de syntaxe, compilation Gradle debug/release.
+- [x] Compiler l'APK debug dans GitHub Actions après ajout du runtime PRoot (voir le run associé au dernier commit). La release reste à valider.
 - [ ] Tests sur téléphone réel : installation, OTG, caméra, SSH, veille, redémarrage et récupération après erreur.
 - [ ] Tests des architectures supportées, rootées/non rootées, perte réseau et retrait USB.
 - [ ] Vérifier qu'aucun écran ou chemin d'exécution OctoPrint ne subsiste.
 
 ## Phase 5 — Livraison
-- [ ] Workflow GitHub Actions pour compiler APK et publier les artefacts.
+- [x] Workflow GitHub Actions pour compiler l'APK debug et publier un artefact temporaire ; le workflow release doit encore être fiabilisé.
 - [ ] Documentation de compatibilité et de récupération.
 - [ ] Release uniquement après tests réels.
 
