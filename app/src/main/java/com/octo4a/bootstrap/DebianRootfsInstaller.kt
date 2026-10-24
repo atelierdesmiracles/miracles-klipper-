@@ -194,9 +194,11 @@ class DebianRootfsInstaller(
                         "Archive rejetée : chemin non sûr ($name)."
                     }
 
-                    val rootPath = output.canonicalPath.trimEnd(File.separatorChar)
+                    val rootPath = output.absoluteFile.normalizeCompat().path.trimEnd(File.separatorChar)
                     val target = File(output, name)
-                    val targetPath = target.canonicalPath
+                    // Use lexical normalization here: canonicalPath follows Debian absolute
+                    // symlinks (for example /bin -> /usr/bin) against the Android host root.
+                    val targetPath = target.absoluteFile.normalizeCompat().path
                     check(targetPath == rootPath || targetPath.startsWith(rootPath + File.separator)) {
                         "Archive rejetée : entrée hors du dossier rootfs ($name)."
                     }
@@ -225,7 +227,7 @@ class DebianRootfsInstaller(
                             "Lien physique non sûr rejeté : $name"
                         }
                         val linkTarget = File(output, linkName)
-                        val resolvedLinkTarget = linkTarget.canonicalPath
+                        val resolvedLinkTarget = linkTarget.absoluteFile.normalizeCompat().path
                         check(resolvedLinkTarget == rootPath || resolvedLinkTarget.startsWith(rootPath + File.separator)) {
                             "Lien physique hors du rootfs rejeté : $name"
                         }
