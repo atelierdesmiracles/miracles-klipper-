@@ -2,23 +2,20 @@
     <string name="app_name">Miracle Klipper</string>
     <string name="landing_install">Préparer Miracle Klipper</string>
     <string name="landing_no_installation">Environnement Miracle Klipper</string>
-    <string name="landing_description">This application will install OctoPrint server on your android device. Please
-        make sure that you have at least 800mb of storage available. You will also need an OTG cable in order to connect
-        your phone to your 3d printer.\n\nThis project is an unofficial product, not affiliated with OctoPrint project.
-    </string>
+    <string name="landing_description">Miracle Klipper prépare un environnement Linux destiné à exécuter Klipper, Moonraker et Mainsail sur votre appareil Android. Prévoyez suffisamment d’espace libre et un câble USB OTG compatible pour connecter votre imprimante 3D.\\n\\nL’intégration complète des services est en cours de développement.</string>
     <string name="installation_step_downloading">Téléchargement de l’environnement (%1$s)…</string>
     <string name="installation_step_extracting">Extraction de l’environnement (%1$s)…</string>
     <string name="installation_step_bootup">Préparation de Miracle Klipper…</string>
-    <string name="installation_step_done">Installation complete</string>
+    <string name="installation_step_done">Installation terminée</string>
     <string name="status_starting">Miracle Klipper démarre…</string>
     <string name="status_stopped">Miracle Klipper est arrêté</string>
     <string name="status_running">Miracle Klipper est démarré</string>
     <string name="status_stopped_start">Touchez pour démarrer le serveur</string>
-    <string name="status_starting_subtitle">this could take a couple of minutes</string>
-    <string name="notification_status_running">Server is running</string>
-    <string name="notification_status_starting">Server is starting up…</string>
-    <string name="notification_status_stopped">Server is stopped</string>
-    <string name="notification_status_installing">Server is being installed…</string>
+    <string name="status_starting_subtitle">Le démarrage peut prendre quelques minutes</string>
+    <string name="notification_status_running">Le serveur fonctionne</string>
+    <string name="notification_status_starting">Démarrage du serveur…</string>
+    <string name="notification_status_stopped">Le serveur est arrêté</string>
+    <string name="notification_status_installing">Installation du serveur…</string>
     <string name="camera_preview">Camera preview</string>
     <string name="action_ok">OK</string>
     <string name="camserver_status_tap">Tap to show preview</string>
