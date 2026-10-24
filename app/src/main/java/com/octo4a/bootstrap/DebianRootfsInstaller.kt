@@ -116,7 +116,7 @@ class DebianRootfsInstaller(
         try {
             connection.connect()
             check(connection.responseCode in 200..299) { "Téléchargement rootfs échoué (HTTP ${connection.responseCode})." }
-            val total = connection.contentLengthLong
+            val total = connection.contentLength.toLong()
             // Rootfs v0.1.0 is ~237 MB; reject implausibly small and unbounded response sizes.
             check(total in MIN_ARCHIVE_BYTES..MAX_ARCHIVE_BYTES) { "Taille du rootfs inattendue : ${total} octets." }
             var downloaded = 0L
@@ -172,10 +172,10 @@ class DebianRootfsInstaller(
                         "Archive rejetée : chemin non sûr ($name)."
                     }
 
-                    val rootPath = output.canonicalFile.toPath()
+                    val rootPath = output.canonicalPath.trimEnd(File.separatorChar)
                     val target = File(output, name)
-                    val targetPath = target.canonicalFile.toPath()
-                    check(targetPath.startsWith(rootPath)) {
+                    val targetPath = target.canonicalPath
+                    check(targetPath == rootPath || targetPath.startsWith(rootPath + File.separator)) {
                         "Archive rejetée : entrée hors du dossier rootfs ($name)."
                     }
 
@@ -184,8 +184,8 @@ class DebianRootfsInstaller(
                     if (entry.isSymbolicLink) {
                         val linkName = entry.linkName
                         check(!File(linkName).isAbsolute) { "Lien absolu rejeté : $name" }
-                        val linkTarget = File(target.parentFile, linkName).absoluteFile.normalizeCompat().toPath()
-                        check(linkTarget.startsWith(rootPath)) { "Lien sortant du rootfs rejeté : $name" }
+                        val linkTarget = File(target.parentFile, linkName).absoluteFile.normalizeCompat().path
+                        check(linkTarget == rootPath || linkTarget.startsWith(rootPath + File.separator)) { "Lien sortant du rootfs rejeté : $name" }
                         target.parentFile?.mkdirs()
                         if (target.exists() || target.isSymbolicLinkCompat()) target.delete()
                         android.system.Os.symlink(linkName, target.absolutePath)
