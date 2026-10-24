@@ -1,7 +1,6 @@
 package com.octo4a.bootstrap
 
 import android.content.Context
-import android.util.AtomicFile
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -12,7 +11,6 @@ import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
-import org.json.JSONObject
 
 /**
  * Downloads and safely installs the pinned Miracle Klipper Debian rootfs.
@@ -160,33 +158,39 @@ class DebianRootfsInstaller(
             org.apache.commons.compress.archivers.tar.TarArchiveInputStream(xz).use { tar ->
                 while (true) {
                     val entry = tar.nextTarEntry ?: break
-                    val target = File(output, entry.name)
-                    val normalizedRoot = output.canonicalFile
-                    val normalizedTarget = target.canonicalFile
-                    check(normalizedTarget.toPath().startsWith(normalizedRoot.toPath())) {
-                        "Archive rejetée : entrée hors du dossier rootfs (${entry.name})."
+                    val entryName = entry.name
+                    check(!entryName.startsWith("/") && !entryName.split('/').contains("..")) {
+                        "Archive rejetée : chemin non sûr ($entryName)."
                     }
+                    val target = File(output, entryName)
+                    val normalizedRoot = output.canonicalFile.toPath()
+                    val normalizedTarget = target.canonicalFile.toPath()
+                    check(normalizedTarget.startsWith(normalizedRoot)) {
+                        "Archive rejetée : entrée hors du dossier rootfs ($entryName)."
+                    }
+
+                    // Fail closed on links until link ordering and chains can be validated.
                     if (entry.isSymbolicLink || entry.isLink) {
-                        val link = entry.linkName
-                        check(!File(link).isAbsolute && !link.split('/').contains("..")) {
-                            "Archive rejetée : lien symbolique non sûr (${entry.name})."
-                        }
-                        target.parentFile?.mkdirs()
-                        if (target.exists()) target.delete()
-                        android.system.Os.symlink(link, target.absolutePath)
-                        continue
+                        error("Archive rejetée : lien non pris en charge par l'extracteur sécurisé ($entryName).")
                     }
                     if (entry.isDirectory) {
-                        check(target.isDirectory || target.mkdirs()) { "Impossible de créer ${entry.name}" }
+                        check(target.isDirectory || target.mkdirs()) { "Impossible de créer $entryName" }
                     } else if (entry.isFile) {
                         target.parentFile?.mkdirs()
                         FileOutputStream(target).use { out ->
-                            tar.copyTo(out)
+                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                            while (true) {
+                                val count = tar.read(buffer)
+                                if (count < 0) break
+                                out.write(buffer, 0, count)
+                            }
+                            out.fd.sync()
                         }
-                        if ((entry.mode and 0b001001001) != 0) target.setExecutable(true, false)
+                        target.setReadable((entry.mode and 0b100000000) != 0, false)
+                        target.setWritable((entry.mode and 0b010000000) != 0, false)
+                        target.setExecutable((entry.mode and 0b001001001) != 0, false)
                     } else {
-                        // Reject device nodes, FIFOs and unknown special entries on Android.
-                        error("Archive rejetée : type d'entrée non pris en charge (${entry.name}).")
+                        error("Archive rejetée : type d'entrée non pris en charge ($entryName).")
                     }
                 }
             }
