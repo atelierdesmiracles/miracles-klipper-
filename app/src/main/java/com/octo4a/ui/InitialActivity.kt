@@ -165,7 +165,7 @@ class InitialActivity : AppCompatActivity() {
         val sections = content.lineSequence()
             .map { it.trim() }
             .filter { it.startsWith("[") && it.endsWith("]") }
-            .map { it.substring(1, it.length - 1).trim().substringBefore(" ").lowercase() }
+            .map { it.substring(1, it.length - 1).trim().substringBefore(" ").toLowerCase(java.util.Locale.ROOT) }
             .toSet()
         val errors = mutableListOf<String>()
         if (content.isBlank()) errors += "ERREUR : le fichier est vide."
