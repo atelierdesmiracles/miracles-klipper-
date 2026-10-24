@@ -281,12 +281,49 @@ class InitialActivity : AppCompatActivity() {
             setPadding(32, 16, 32, 8)
         }
         val scroll = android.widget.ScrollView(this).apply { addView(textView) }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.runtime_diagnostics_title)
             .setView(scroll)
             .setPositiveButton(R.string.runtime_diagnostics_refresh) { _, _ -> showRuntimeDiagnostics() }
             .setNegativeButton(android.R.string.ok, null)
-            .show()
+            .create()
+        dialog.show()
+
+        // Check actual endpoints off the UI thread: files and process launch do not prove readiness.
+        textView.text = report + "\n\nÉtat des services réseau\nVérification en cours…"
+        Thread({
+            val mainsail = checkHttpEndpoint("http://127.0.0.1/")
+            val moonraker = checkHttpEndpoint("http://127.0.0.1:7125/server/info")
+            val health = "\n\nÉtat des services réseau\nMainsail / Nginx : $mainsail\nAPI Moonraker : $moonraker"
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed && textView.isAttachedToWindow) {
+                    textView.text = report + health
+                }
+            }
+        }, "miracle-klipper-health-check").apply { isDaemon = true; start() }
+    }
+
+    private fun checkHttpEndpoint(address: String): String {
+        val connection = try {
+            (java.net.URL(address).openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 1500
+                readTimeout = 1500
+                requestMethod = "GET"
+                instanceFollowRedirects = false
+            }
+        } catch (error: Exception) {
+            return "inaccessible (${error.message ?: error.javaClass.simpleName})"
+        }
+        return try {
+            connection.connect()
+            val code = connection.responseCode
+            if (code in 200..299) "répond (HTTP $code)"
+            else "répond avec une erreur HTTP $code"
+        } catch (error: Exception) {
+            "inaccessible (${error.message ?: error.javaClass.simpleName})"
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun readLastLines(file: File, maxLines: Int = 80): String {
