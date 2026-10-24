@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FTDIS -->
+    <usb-device product-id="24577" vendor-id="1027"/>
+    <usb-device product-id="24592" vendor-id="1027"/>
+    <usb-device product-id="24593" vendor-id="1027"/>
+    <usb-device product-id="24596" vendor-id="1027"/>
+    <usb-device product-id="24597" vendor-id="1027"/>
+    <!-- Sillabs -->
+    <usb-device product-id="60000" vendor-id="4292"/>
+    <usb-device product-id="60016" vendor-id="4292"/>
+    <usb-device product-id="60017" vendor-id="4292"/>
+    <usb-device product-id="60032" vendor-id="4292"/>
+
+    <!-- Prolific -->
+    <usb-device product-id="8963" vendor-id="1659"/>
+    <!-- CH341 -->
+    <usb-device product-id="29987" vendor-id="6790"/>
+    <!-- Prusa - CDC drivers -->
+    <usb-device vendor-id="11417"/>
+    <!-- Arduino - CDC drivers -->
+    <usb-device vendor-id="9025"/>
+    <!-- Teensy - CDC drivers -->
+    <usb-device product-id="1155" vendor-id="5824"/>
+    <!-- Atmel LUFA - CDC drivers -->
+    <usb-device product-id="8260" vendor-id="1003"/>
+    <!-- Maple board (?) - CDC drivers -->
+    <usb-device product-id="4" vendor-id="7855"/>
+    <usb-device product-id="41" vendor-id="7855"/>
+    <!-- NXP Armbed (?) - CDC drivers -->
+    <usb-device product-id="516" vendor-id="3368"/>
+    <!-- Marlin firmware - CDC drivers -->
+    <usb-device product-id="24617" vendor-id="7504"/>
+    <!-- BIGTREETECH SKR Mini E3 - CDC drivers -->
+    <usb-device product-id="22336" vendor-id="1155"/>
+
+    <usb-device product-id="24812" vendor-id="7504"/>
+
+    <!-- BTT SKR1.3 -->
+    <usb-device product-id="24910" vendor-id="7504"/>
+
+</resources>

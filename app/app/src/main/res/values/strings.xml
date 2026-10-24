@@ -1,0 +1,77 @@
+<resources>
+    <string name="app_name">OctoPrint For Android</string>
+    <string name="landing_install">Install OctoPrint</string>
+    <string name="landing_no_installation">No existing installation detected</string>
+    <string name="landing_description">This application will install OctoPrint server on your android device. Please
+        make sure that you have at least 800mb of storage available. You will also need an OTG cable in order to connect
+        your phone to your 3d printer.\n\nThis project is an unofficial product, not affiliated with OctoPrint project.
+    </string>
+    <string name="installation_step_downloading">Downloading bootstrap (%1$s)…</string>
+    <string name="installation_step_extracting">Extracting bootstrap (%1$s)…</string>
+    <string name="installation_step_bootup">Booting OctoPrint for the first time…</string>
+    <string name="installation_step_done">Installation complete</string>
+    <string name="status_starting">OctoPrint is starting…</string>
+    <string name="status_stopped">OctoPrint is stopped</string>
+    <string name="status_running">OctoPrint is running</string>
+    <string name="status_stopped_start">tap to start the server</string>
+    <string name="status_starting_subtitle">this could take a couple of minutes</string>
+    <string name="notification_status_running">Server is running</string>
+    <string name="notification_status_starting">Server is starting up…</string>
+    <string name="notification_status_stopped">Server is stopped</string>
+    <string name="notification_status_installing">Server is being installed…</string>
+    <string name="camera_preview">Camera preview</string>
+    <string name="action_ok">OK</string>
+    <string name="camserver_status_tap">Tap to show preview</string>
+    <string name="camserver_running">Camera server is running</string>
+    <string name="camserver_disabled">Camera server disabled</string>
+    <string name="camserver_enable">Enable in settings</string>
+    <string name="connection_not_connected">Printer not connected</string>
+    <string name="connection_connected">Printer is connected</string>
+    <string name="connection_otg_cable">Connect your printer using OTG cable</string>
+    <string name="turn_off_bat_optimization">Please turn off battery optimization</string>
+    <string name="update_available">New update available</string>
+    <string name="update_available_message">A new version %1$s of the app is available. Please update the app to access
+        newest the features. Please download and install the asset ending with .apk.
+    </string>
+    <string name="action_download">Download</string>
+    <string name="action_later">Later</string>
+    <string name="action_show_logs">Show logs</string>
+    <string name="action_never_ask_again">Never ask again</string>
+    <string name="action_open_settings">Open Settings</string>
+    <string name="disable_battery_optimization">Disable battery optimization</string>
+    <string name="disable_battery_optimization_msg">For stability reasons it is necessary to disable battery optimizations for this app in the system settings</string>
+    <string name="legacy_bootstrap">Legacy installation detected</string>
+    <string name="pre1_legacy_bootstrap_msg">Upgrading from legacy releases is not supported. Proceeding with installation will delete all existing octoprint data.</string>
+    <string name="legacy_bootstrap_msg">Upgrading from a legacy release will require a reinstall of previously-installed plugins. All other data and configuration should be kept intact. Alternatively, you can downgrade to octo4a 1.2.6, and prepare a backup in OctoPrint\'s settings.</string>
+    <string name="clear_and_install">Clear data</string>
+    <string name="status_shutting_down">OctoPrint is shutting down…</string>
+    <string name="status_shutting_down_subtitle">this could take a couple of seconds</string>
+    <string name="api_too_low">Not supported on older phones</string>
+    <string name="requesting_usb_permission">Requesting permission to device…</string>
+    <string name="no_driver_selected">No driver selected.</string>
+    <string name="optimization_settings_error">Failed to open battery optimization settings</string>
+    <string name="serial_driver"> serial driver</string>
+    <string name="tap_to_select"> (tap to select)</string>
+    <string name="installation_corrupt">Installation corrupted</string>
+    <string name="missing_write_permission">Missing storage permission…</string>
+    <string name="bootstrap_not_selected">No bootstrap version selected…</string>
+    <string name="missing_network">No network connection</string>
+    <string name="tap_to_reinstall">tap to reinstall the app</string>
+    <string name="bugreport_dialog_title">Enable anonymous bug reporting</string>
+    <string name="bugreport_dialog_msg">Octo4a is currently under rapid development. Enabling anonymous bug reporting makes it easier for developers to see what caused the app to malfunction and improve it. You can always change this setting later in the app\'s preferences.</string>
+    <string name="bugreport_dialog_dismiss">No</string>
+    <string name="bugreport_dialog_enable">Yes, enable reporting</string>
+    <string name="app_will_restart_to_clear">The app will stop to clear it\'s data. Please start it again and re-install.</string>
+    <string name="reinstall_dialog_title">Do you want to clear the app\'s data and restart?</string>
+    <string name="reinstall_dialog_continue">Continue</string>
+    <string name="reinstall_dialog_dismiss">Cancel</string>
+    <string name="installation_error">Installation error</string>
+    <string name="please_attach_log">Please attach the log when seeking support on Github. It is vital for troubleshooting.</string>
+    <string name="see_logs">See logs</string>
+    <string name="clear_data_and_restart">Clear data and restart</string>
+    <string name="no_local_network">It appears that your device has no connectivity to your local network. Please connect to Wi-Fi, Ethernet or a VPN to access your OctoPrint instance from other devices.</string>
+    <string name="ip_address_copied_to_clipboard">IP address copied to clipboard!</string>
+    <string name="unofficial_app_note">This is an unofficial app, not affiliated with OctoPrint project. Use at your own risk.</string>
+    <string name="unofficial_app_thanks">Thanks for using this app.</string>
+    <string name="camera_preview_manual_af">Manual camera focus</string>
+</resources>
