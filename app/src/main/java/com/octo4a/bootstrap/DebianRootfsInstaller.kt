@@ -47,9 +47,11 @@ class DebianRootfsInstaller(
 
         val archive = File(downloads, "miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz")
         val expectedSha = EXPECTED_SHA256
+        val activeSize = if (active.exists()) estimateDirectorySize(active) else 0L
+        val requiredBytes = REQUIRED_FREE_BYTES + activeSize
         val availableBytes = downloads.usableSpace
-        check(availableBytes > REQUIRED_FREE_BYTES) {
-            "Espace libre insuffisant. Libérer au moins ${REQUIRED_FREE_BYTES / (1024 * 1024)} Mo avant l’installation."
+        check(availableBytes > requiredBytes) {
+            "Espace libre insuffisant. Libérer au moins ${requiredBytes / (1024 * 1024)} Mo avant l’installation."
         }
         downloadPinnedRootfs(archive)
         val actualSha = sha256(archive)
@@ -264,6 +266,12 @@ class DebianRootfsInstaller(
         try {
             android.system.Os.lstat(absolutePath).let { it.st_mode and android.system.OsConstants.S_IFMT == android.system.OsConstants.S_IFLNK }
         } catch (_: Exception) { false }
+
+    private fun estimateDirectorySize(file: File): Long {
+        if (!file.exists()) return 0L
+        if (!file.isDirectory) return file.length()
+        return (file.listFiles() ?: emptyArray()).sumOf { estimateDirectorySize(it) }
+    }
 
     private fun copyDirectoryContents(source: File, destination: File) {
         val sourceRoot = source.canonicalPath
