@@ -1,0 +1,89 @@
+name: Import Octo4a Android sources
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "Octo4a Git ref (branch, tag, or commit SHA)"
+        required: true
+        default: "master"
+      target_branch:
+        description: "Existing Miracle Klipper branch to update"
+        required: true
+        default: "feat/octo4a-to-miracle-klipper"
+      confirm_import:
+        description: "Type IMPORT to confirm adding upstream Android sources"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: octo4a-import-${{ github.event.inputs.target_branch }}
+  cancel-in-progress: false
+
+jobs:
+  import:
+    if: ${{ github.event.inputs.confirm_import == 'IMPORT' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_branch }}
+          fetch-depth: 0
+
+      - name: Guard against overwriting existing Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -e app || -e gradlew || -e settings.gradle || -e settings.gradle.kts ]]; then
+            echo "::error::Android/Gradle project files already exist. Refusing to overwrite them."
+            exit 1
+          fi
+
+      - name: Fetch and import upstream project
+        shell: bash
+        env:
+          UPSTREAM_REF: ${{ github.event.inputs.upstream_ref }}
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/feelfreelinux/octo4a.git /tmp/octo4a
+          git -C /tmp/octo4a checkout --detach "$UPSTREAM_REF"
+          test -d /tmp/octo4a/app
+          test -f /tmp/octo4a/gradlew
+          test -d /tmp/octo4a/gradle
+          tar -C /tmp/octo4a --exclude='./.git' --exclude='./.github' --exclude='./README.md' --exclude='./LICENSE*' -cf - . | tar -xf -
+          if [[ -f /tmp/octo4a/LICENSE.md ]]; then
+            cp /tmp/octo4a/LICENSE.md ./LICENSE-OCTO4A-AGPL-3.0.md
+          elif [[ -f /tmp/octo4a/LICENSE ]]; then
+            cp /tmp/octo4a/LICENSE ./LICENSE-OCTO4A-AGPL-3.0.md
+          else
+            echo "::error::Upstream license file missing; import stopped."
+            exit 1
+          fi
+          cp /tmp/octo4a/README.md ./README-OCTO4A-UPSTREAM.md
+          git -C /tmp/octo4a rev-parse HEAD > OCTO4A_UPSTREAM_COMMIT.txt
+          printf 'Upstream URL: https://github.com/feelfreelinux/octo4a\nRequested ref: %s\n' "$UPSTREAM_REF" >> OCTO4A_UPSTREAM_COMMIT.txt
+          chmod +x ./gradlew
+          test -f ./settings.gradle -o -f ./settings.gradle.kts
+
+      - name: Commit imported sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "build: import Octo4a Android sources"
+          git push origin HEAD:"${{ github.event.inputs.target_branch }}"
+
+  reject-unconfirmed:
+    if: ${{ github.event.inputs.confirm_import != 'IMPORT' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain confirmation requirement
+        run: |
+          echo "Import cancelled. Run this workflow again and type IMPORT to confirm."
+          exit 1

@@ -1,0 +1,28 @@
+name: Miracle Klipper Android CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-project:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify project metadata
+        run: |
+          set -eu
+          test -s README.md
+          test -s docs/PLAN_INTEGRATION.md
+          grep -q "Miracle Klipper" README.md
+          grep -q "systemd" docs/PLAN_INTEGRATION.md
+      - name: Report Android build status
+        run: |
+          echo "::notice::Gradle build is enabled only after Android source import."
+          echo "No APK is produced by this documentation-only bootstrap commit."
