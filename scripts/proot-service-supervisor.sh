@@ -4,8 +4,8 @@
 # It intentionally does not depend on systemd/PID 1.
 set -eu
 
-ROOT="\${MIRACLE_KLIPPER_ROOT:-/root}"
-DATA="\${MIRACLE_KLIPPER_DATA:-$ROOT/printer_data}"
+ROOT="${MIRACLE_KLIPPER_ROOT:-/root}"
+DATA="${MIRACLE_KLIPPER_DATA:-$ROOT/printer_data}"
 LOGS="$DATA/logs"
 COMMS="$DATA/comms"
 CONFIG="$DATA/config"
@@ -14,7 +14,7 @@ KLIPPER="$ROOT/klipper"
 MOONRAKER="$ROOT/moonraker"
 KLIPPER_PY="$ROOT/klipper-venv/bin/python"
 MOONRAKER_PY="$ROOT/moonraker-venv/bin/python"
-NGINX="\${NGINX_BIN:-nginx}"
+NGINX="${NGINX_BIN:-nginx}"
 
 mkdir -p "$LOGS" "$COMMS" "$CONFIG" "$PIDDIR" "$DATA/gcodes"
 [ -f "$CONFIG/printer.cfg" ] || {
@@ -39,7 +39,7 @@ stop_services() {
     fi
   done
 }
-if [ "\${1:-start}" = "stop" ]; then
+if [ "${1:-start}" = "stop" ]; then
   stop_services
   exit 0
 fi
