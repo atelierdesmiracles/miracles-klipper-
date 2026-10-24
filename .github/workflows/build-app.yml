@@ -2,9 +2,7 @@ name: Build Miracle Klipper APK
 
 on:
   push:
-    branches: [main, "feat/**"]
     tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
