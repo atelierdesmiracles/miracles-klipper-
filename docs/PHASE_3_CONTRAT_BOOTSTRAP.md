@@ -6,7 +6,7 @@ La première release est publiée :
 - Version : `v0.1.0`
 - Release : https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/tag/v0.1.0
 - Artefact : `miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz`
-- SHA-256 : `0fe5ec04fca882c8531a60169b795e6b0477229af77d6d75aedcff177e2ff56a`
+- Taille de l'archive publiée : 237 461 348 octets\n- SHA-256 : `05bb0f9dfc90091aad7312620e47aceef788f6b26e46a499112ea81e72af30d0`
 - Somme publiée : https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz.sha256
 - Archive : https://github.com/atelierdesmiracles/boostrap-debian-monnraker-et-klipper-/releases/download/v0.1.0/miracle-klipper-debian-bookworm-arm64-rootfs.tar.xz
 
