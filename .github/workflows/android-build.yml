@@ -46,7 +46,7 @@ jobs:
         if: steps.project.outputs.present == 'true'
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '11'
           cache: gradle
       - name: Make Gradle wrapper executable
         if: steps.project.outputs.present == 'true'
