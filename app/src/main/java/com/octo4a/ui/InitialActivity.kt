@@ -144,6 +144,7 @@ class InitialActivity : AppCompatActivity() {
                     openReleaseButton.isEnabled = true
                     setupProgress.visibility = ProgressBar.GONE
                     setupStatus.text = getString(R.string.bootstrap_installed_runtime_pending)
+                    setupButton.text = getString(R.string.runtime_start_button)
                     Toast.makeText(this, getString(R.string.bootstrap_install_success), Toast.LENGTH_LONG).show()
                 }
             },
