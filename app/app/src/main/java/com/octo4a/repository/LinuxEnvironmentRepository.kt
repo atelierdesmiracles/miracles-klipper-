@@ -264,12 +264,14 @@ class LinuxEnvironmentRepositoryImpl(
         ensureDirectoryExists(ownedBootstrap)
 
         if (environmentArchitecture == LinuxArchitecture.ARM64) {
-            val modernDirectory = File(baseDirectory, "bootstrap/proot-modern")
-            val modernProot = File(modernDirectory, "proot")
-            if (!modernProot.isFile || !modernProot.canExecute() ||
-                !File(modernDirectory, "loader").isDirectory
+            // Keep Octo4a's expected layout: bin/proot resolves its bundled
+            // loader from ../libexec/proot relative to the process working directory.
+            val proot = File(ownedBootstrap, "proot")
+            val loader = File(baseDirectory, "bootstrap/libexec/proot")
+            if (!proot.isFile || !proot.canExecute() ||
+                !loader.isDirectory || loader.listFiles().isNullOrEmpty()
             ) {
-                installModernArm64Proot(modernDirectory)
+                installModernArm64Proot(File(baseDirectory, "bootstrap"))
             }
             return
         }
@@ -353,19 +355,24 @@ class LinuxEnvironmentRepositoryImpl(
         }
         val downloadedProot = File(extracted, "proot")
         val downloadedLoader = File(extracted, "loader")
-        if (!downloadedProot.isFile || !downloadedLoader.isDirectory) {
+        if (!downloadedProot.isFile || !downloadedLoader.isDirectory ||
+            downloadedLoader.listFiles().isNullOrEmpty()
+        ) {
             staging.deleteRecursively()
             throw IOException("Compatible PRoot archive is missing its executable or loader")
         }
-        if (destination.exists() && !destination.deleteRecursively()) {
-            throw IOException("Could not replace the previous compatible PRoot")
+
+        val destinationBin = File(destination, "bin")
+        val destinationLoader = File(destination, "libexec/proot")
+        ensureDirectoryExists(destinationBin)
+        if (destinationLoader.exists() && !destinationLoader.deleteRecursively()) {
+            throw IOException("Could not replace the previous PRoot loader")
         }
-        ensureDirectoryExists(destination)
-        if (!downloadedProot.copyTo(File(destination, "proot"), overwrite = true).setExecutable(true, false)) {
+        if (!downloadedProot.copyTo(File(destinationBin, "proot"), overwrite = true).setExecutable(true, false)) {
             staging.deleteRecursively()
             throw IOException("Could not prepare the compatible PRoot executable")
         }
-        downloadedLoader.copyRecursively(File(destination, "loader"), overwrite = true)
+        downloadedLoader.copyRecursively(destinationLoader, overwrite = true)
         staging.deleteRecursively()
     }
 
@@ -621,8 +628,7 @@ class LinuxEnvironmentRepositoryImpl(
 
     private fun runInRootfs(rootfs: File, command: List<String>) {
         val bootstrapBin = File(baseDirectory, "bootstrap/bin")
-        val modernProot = File(baseDirectory, "bootstrap/proot-modern/proot")
-        val proot = if (modernProot.isFile && modernProot.canExecute()) modernProot else File(bootstrapBin, "proot")
+        val proot = File(bootstrapBin, "proot")
         val temporaryDirectory = File(baseDirectory, "tmp")
         // Use a private app-owned temporary directory for PRoot's runtime files.
         // Do not enable PRoot's link2symlink emulation here: on some Android kernels
