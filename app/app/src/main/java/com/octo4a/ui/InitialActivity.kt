@@ -142,13 +142,11 @@ class InitialActivity: AppCompatActivity() {
             prefs.setupAssistantSkipped = false
             if (!isNetworkConnected()) {
                 Toast.makeText(this, getString(R.string.missing_network), Toast.LENGTH_LONG).show()
-            } else if (bootstrapRepository.isBootstrapInstalled) {
-                launchKlipperSetup()
-            } else if (!bootstrapReleaseAvailable) {
-                Toast.makeText(this, getString(R.string.bootstrap_release_unavailable), Toast.LENGTH_LONG).show()
-                installationViewModel.fetchBootstrapReleases()
             } else {
-                continueSetupAfterStoragePermission()
+                // Miracle Klipper installs Debian, Klipper, Moonraker and the selected web UI.
+                // Never route a new installation through the legacy OctoPrint bootstrap.
+                prefs.pendingKlipperSetup = true
+                launchKlipperSetup()
             }
         }
 
@@ -161,7 +159,6 @@ class InitialActivity: AppCompatActivity() {
         retryRootButton.setOnClickListener { requestRootAccess() }
 
         cameraEnumerationRepository.enumerateCameras()
-        if (!bootstrapRepository.isBootstrapInstalled) installationViewModel.fetchBootstrapReleases()
         showArchitectureSelectionDialog()
     }
 
@@ -259,19 +256,14 @@ class InitialActivity: AppCompatActivity() {
     }
 
     private fun updateActionsForRootState() {
-        installButton.isEnabled = rootAuthorized && (bootstrapRepository.isBootstrapInstalled || bootstrapReleaseAvailable)
+        // Android root and the legacy OctoPrint bootstrap are not required.
+        installButton.isEnabled = rootAuthorized
         skipSetupButton.isEnabled = rootAuthorized
     }
 
     private fun routeExistingInstallation() {
-        if (legacyBootstrapInstalled) {
-            showLegacyBootstrapDialog()
-            return
-        }
-        if (pre1LegacyBootstrapInstalled) {
-            showPre1LegacyBootstrapDialog()
-            return
-        }
+        // Existing Octo4a/OctoPrint bootstrap files are legacy data and must not
+        // block the Miracle Klipper Debian/PRoot setup flow.
         if (prefs.pendingKlipperSetup && bootstrapRepository.isBootstrapInstalled) {
             launchKlipperSetup()
             return
@@ -283,9 +275,8 @@ class InitialActivity: AppCompatActivity() {
 
     private fun isKlipperStackInstalled(): Boolean {
         val selected = KlipperWebInterface.fromPreference(prefs.selectedKlipperWebInterface)
-        return bootstrapRepository.isBootstrapInstalled && linuxEnvironment.isReady &&
-            klipper.isInstalled && moonraker.isInstalled && webInterface.isInstalled(selected) &&
-            klipperScreen.isInstalled
+        return linuxEnvironment.isReady && klipper.isInstalled && moonraker.isInstalled &&
+            webInterface.isInstalled(selected) && klipperScreen.isInstalled
     }
 
     private fun persistWebInterfaceChoice() {
@@ -305,14 +296,10 @@ class InitialActivity: AppCompatActivity() {
     }
 
     private fun launchBootstrapInstaller() {
-        if (!bootstrapRepository.isBootstrapInstallItemSelected) {
-            Toast.makeText(this, getString(R.string.bootstrap_not_selected), Toast.LENGTH_LONG).show()
-            return
-        }
+        // Kept as a compatibility entry point for older callers. New installs must
+        // always use the Debian + Klipper + Moonraker setup, never OctoPrint.
         prefs.pendingKlipperSetup = true
-        startOctoService()
-        startActivity(Intent(this, InstallationActivity::class.java))
-        finish()
+        launchKlipperSetup()
     }
 
     private fun launchKlipperSetup() {
@@ -332,10 +319,6 @@ class InitialActivity: AppCompatActivity() {
         return cm.activeNetworkInfo != null && cm.activeNetworkInfo.isConnected
     }
 
-    private fun startOctoService() {
-        val intent = Intent(this, OctoPrintService::class.java)
-        startService(intent)
-    }
     private fun showLegacyBootstrapDialog() {
         val alertDialog: AlertDialog? = this.let {
             val builder = AlertDialog.Builder(it)
