@@ -332,7 +332,7 @@ class LinuxEnvironmentRepositoryImpl(
         ZipInputStream(archive.inputStream().buffered()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                val normalized = entry.name.replace('\\\\', '/')
+                val normalized = entry.name.replace('\\', '/')
                 if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) {
                     throw IOException("Unsafe path in compatible PRoot archive")
                 }
