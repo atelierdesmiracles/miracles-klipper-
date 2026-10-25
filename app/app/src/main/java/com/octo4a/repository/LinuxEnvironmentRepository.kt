@@ -17,6 +17,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.URL
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.security.MessageDigest
 import javax.net.ssl.HttpsURLConnection
 
@@ -549,6 +551,8 @@ class LinuxEnvironmentRepositoryImpl(
         if (previousRootfs.exists() && !previousRootfs.deleteRecursively()) {
             throw IOException("Could not remove the previous Debian rootfs backup")
         }
+        val stagedRootPath = stagedRootfs.absolutePath
+        val activeRootPath = rootfsDirectory.absolutePath
         val hadRootfs = rootfsDirectory.exists()
         if (hadRootfs && !rootfsDirectory.renameTo(previousRootfs)) {
             throw IOException("Could not preserve the existing Debian rootfs")
@@ -557,9 +561,44 @@ class LinuxEnvironmentRepositoryImpl(
             if (hadRootfs) previousRootfs.renameTo(rootfsDirectory)
             throw IOException("Could not activate the Debian rootfs")
         }
-        ensureDirectoryExists(stateDirectory)
-        File(stateDirectory, "linux-environment.sha256").writeText("$expectedHash\n")
+
+        try {
+            // PRoot link2symlink stores emulated hard-link targets under rootfs/.l2s.
+            // Debian packages are configured before activation, while the rootfs still
+            // lives in the staging directory. Rewrite any absolute symlink targets that
+            // refer to that old path before the next dpkg invocation.
+            rewriteMovedRootfsSymlinks(rootfsDirectory, stagedRootPath, activeRootPath)
+            ensureDirectoryExists(stateDirectory)
+            File(stateDirectory, "linux-environment.sha256").writeText("$expectedHash\n")
+        } catch (error: Exception) {
+            rootfsDirectory.deleteRecursively()
+            if (hadRootfs && !previousRootfs.renameTo(rootfsDirectory)) {
+                error.addSuppressed(IOException("Could not restore the previous Debian rootfs"))
+            }
+            throw IOException("Could not finalize the Debian rootfs after moving its PRoot hard-link metadata", error)
+        }
         if (previousRootfs.exists()) previousRootfs.deleteRecursively()
+    }
+
+    private fun rewriteMovedRootfsSymlinks(root: File, oldRootPath: String, newRootPath: String) {
+        fun visit(directory: File) {
+            val children = directory.listFiles()
+                ?: throw IOException("Could not inspect Debian directory ${directory.absolutePath}")
+            for (child in children) {
+                val path = child.toPath()
+                if (Files.isSymbolicLink(path)) {
+                    val target = Files.readSymbolicLink(path).toString()
+                    if (target.contains(oldRootPath)) {
+                        val rewrittenTarget = target.replace(oldRootPath, newRootPath)
+                        Files.delete(path)
+                        Files.createSymbolicLink(path, Paths.get(rewrittenTarget))
+                    }
+                } else if (child.isDirectory) {
+                    visit(child)
+                }
+            }
+        }
+        visit(root)
     }
 
     private fun ensureDirectoryExists(directory: File) {
