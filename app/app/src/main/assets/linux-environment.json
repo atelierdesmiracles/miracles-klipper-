@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "minimumFreeStorageBytes": 2147483648,
+  "minimumFreeStorageBytes": 4294967296,
   "distribution": {
     "name": "Debian",
     "version": "13",
