@@ -78,6 +78,8 @@ class KlipperRepositoryImpl(
     private val installLog = File(baseDirectory, "logs/klipper-install.log")
     private val runtimeLog = File(printerDataDirectory, "logs/klipper-process.log")
     private val installMutex = Mutex()
+    // Serialize start attempts so concurrent service/activity requests cannot launch duplicate processes.
+    private val startMutex = Mutex()
     private val processLock = Any()
     private var activeProcess: ActiveKlipperProcess? = null
 
@@ -243,6 +245,7 @@ class KlipperRepositoryImpl(
     }
 
     override suspend fun start() = withContext(Dispatchers.IO) {
+        startMutex.withLock {
         if (!isInstalled) throw IOException("Install Klipper before starting it")
         if (!isPrinterConfigurationReady) {
             val message = "Add valid [mcu] and [printer] sections to printer.cfg before starting Klipper"
@@ -306,6 +309,7 @@ class KlipperRepositoryImpl(
             state.value = KlipperProgress(KlipperStage.Failed, message, manifest.revision)
             logger.logError(this@KlipperRepositoryImpl, message, error)
             throw IOException(message, error)
+        }
         }
     }
 
