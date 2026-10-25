@@ -236,7 +236,7 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun loadManifest(): LinuxEnvironmentManifest {
-        val assetName = if (Build.SUPPORTED_ABIS.firstOrNull() == "x86_64") {
+        val assetName = if (environmentArchitecture == LinuxArchitecture.X86_64) {
             "linux-environment-x86_64.json"
         } else {
             "linux-environment.json"
