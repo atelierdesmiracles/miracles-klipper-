@@ -14,6 +14,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -450,6 +452,10 @@ class MoonrakerRepositoryImpl(
         }
         try {
             state.value = MoonrakerProgress(MoonrakerStage.Installing, "Installing Moonraker system dependencies", manifest.revision)
+            // Repair old PRoot link2symlink entries from installations created before
+            // rootfs activation rewrote staging paths. A stale target can make dpkg
+            // fail to create /var/lib/dpkg/status-old with EPERM on non-root Android.
+            repairMovedRootfsSymlinks()
             runInRootfs(
                 listOf("/usr/bin/apt-get", "-o", "Dpkg::Use-Pty=0", "update"),
                 "Refresh Debian package metadata"
@@ -477,6 +483,31 @@ class MoonrakerRepositoryImpl(
                 logger.log(this, LogType.BOOTSTRAP) { "Could not remove temporary policy-rc.d" }
             }
         }
+    }
+
+    private fun repairMovedRootfsSymlinks() {
+        val oldRootPath = File(baseDirectory, "staging/debian/rootfs").absolutePath
+        val newRootPath = rootfsDirectory.absolutePath
+        if (!rootfsDirectory.isDirectory) return
+
+        fun visit(directory: File) {
+            val children = directory.listFiles()
+                ?: throw IOException("Could not inspect Debian directory ${directory.absolutePath}")
+            for (child in children) {
+                val path = child.toPath()
+                if (Files.isSymbolicLink(path)) {
+                    val target = Files.readSymbolicLink(path).toString()
+                    if (target.contains(oldRootPath)) {
+                        val rewrittenTarget = target.replace(oldRootPath, newRootPath)
+                        Files.delete(path)
+                        Files.createSymbolicLink(path, Paths.get(rewrittenTarget))
+                    }
+                } else if (child.isDirectory) {
+                    visit(child)
+                }
+            }
+        }
+        visit(rootfsDirectory)
     }
 
     private fun restoreDebconfFrontendIfMissing() {
