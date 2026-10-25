@@ -16,7 +16,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.nio.file.Files
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.net.URL
@@ -353,7 +352,7 @@ class LinuxEnvironmentRepositoryImpl(
             TarArchiveInputStream(xz).use { tar ->
                 while (true) {
                     val entry = tar.nextTarEntry ?: break
-                    val normalizedName = entry.name.replace('\\\\', '/')
+                    val normalizedName = entry.name.replace('\\', '/')
                     val components = normalizedName.split('/').filter { it.isNotEmpty() && it != "." }
                     // proot-distro archives contain a single wrapper directory.
                     if (components.size <= 1) continue
@@ -388,7 +387,7 @@ class LinuxEnvironmentRepositoryImpl(
                         }
                         entry.isLink -> {
                             ensureDirectoryExists(target.parentFile)
-                            val linkParts = entry.linkName.replace('\\\\', '/').split('/')
+                            val linkParts = entry.linkName.replace('\\', '/').split('/')
                                 .filter { it.isNotEmpty() && it != "." }
                             if (linkParts.any { it == ".." }) {
                                 throw IOException("Unsafe hard link in Debian rootfs archive")
