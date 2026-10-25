@@ -31,8 +31,7 @@ jobs:
           java-version: "17"
 
       # GitHub-hosted Ubuntu runners already provide Android SDK command-line tools.
-      # Avoid android-actions/setup-android here: its default "tools" package is obsolete
-      # and causes sdkmanager to fail on current SDK repositories.
+      # Avoid android-actions/setup-android here: its default "tools" package is obsolete.
       - name: Locate Android SDK
         shell: bash
         run: |
@@ -52,8 +51,7 @@ jobs:
         run: yes | sdkmanager --licenses
 
       - name: Install Android SDK packages
-        run: |
-          sdkmanager --install "platforms;android-28" "build-tools;30.0.3" "cmake;3.22.1"
+        run: sdkmanager --install "platforms;android-28" "build-tools;30.0.3" "cmake;3.22.1"
 
       - name: Set up Android NDK
         uses: nttld/setup-ndk@v1
@@ -61,8 +59,7 @@ jobs:
           ndk-version: r21d
           add-to-path: false
 
-      # This legacy project uses Gradle 7.2 / Android Gradle Plugin 7.1.3,
-      # so use JDK 11 for Gradle after installing the SDK with JDK 17.
+      # Legacy project: Gradle 7.2 / Android Gradle Plugin 7.1.3.
       - name: Set up JDK 11 for Gradle
         uses: actions/setup-java@v4
         with:
@@ -70,23 +67,25 @@ jobs:
           java-version: "11"
           cache: gradle
 
+      # The repository's gradlew may not have its executable bit set.
+      # Invoke it with bash so CI does not depend on file mode metadata.
       - name: Show toolchain versions
         working-directory: ./app
         run: |
           java -version
-          ./gradlew --version
+          bash ./gradlew --version
 
       - name: Run unit tests
         working-directory: ./app
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: bash ./gradlew --no-daemon testDebugUnitTest
 
       - name: Build debug APK
         working-directory: ./app
-        run: ./gradlew --no-daemon assembleDebug
+        run: bash ./gradlew --no-daemon assembleDebug
 
       - name: Build release APK
         working-directory: ./app
-        run: ./gradlew --no-daemon assembleRelease
+        run: bash ./gradlew --no-daemon assembleRelease
 
       - name: Upload APKs and test reports
         if: always()
