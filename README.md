@@ -38,6 +38,8 @@ For a release variant:
 ./gradlew assembleRelease
 ```
 
+The CI workflow publishes an **unsigned test APK** for version tags. It is suitable for installation testing, but it is not a production release: users cannot install it as an update over an APK signed with a different key. A production release must be signed with a controlled project key stored in GitHub Actions secrets; never commit the keystore or passwords.
+
 The build uses an older Android Gradle Plugin/Kotlin/Gradle toolchain. Use the versions defined by the project until a dedicated compatibility upgrade is performed. Do not interpret a successful compile as proof of hardware functionality.
 
 ## Validation checklist
