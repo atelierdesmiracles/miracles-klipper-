@@ -136,16 +136,7 @@ class OctoPrintService : LifecycleService() {
                 }
             )
         }
-        fifoEventRepository.eventState.observe(this) {
-            when (it.eventType) {
-                "stopServer" -> handlerRepository.stopOctoPrint()
-                "restartServer" -> scope.launch {
-                    handlerRepository.stopOctoPrint()
-                    delay(5000)
-                    handlerRepository.startOctoPrint()
-                }
-            }
-        }
+        // The legacy OctoPrint event pipe is intentionally not observed by Miracle Klipper.
     }
 
     fun verifyPtyRunning() {
