@@ -29,7 +29,7 @@ class DebianTerminalRepositoryImpl(
     private val sharedDirectory = File(baseDirectory, "shared")
     private val kiauhDirectory = File(sharedDirectory, "kiauh")
     private val kiauhSudoShim = File(sharedDirectory, "kiauh-support/bin/sudo")
-    private val bootstrapBin = File(context.filesDir, "bootstrap/bin")
+    private val bootstrapBin = File(baseDirectory, "bootstrap/bin")
     private val proot = File(bootstrapBin, "proot")
     private val ttyd = File(rootfsDirectory, "usr/bin/ttyd")
     private val temporaryDirectory = File(baseDirectory, "tmp")
