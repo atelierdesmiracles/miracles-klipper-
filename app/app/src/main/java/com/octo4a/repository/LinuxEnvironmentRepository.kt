@@ -543,26 +543,25 @@ class LinuxEnvironmentRepositoryImpl(
         val fakeProcStat = File(context.filesDir, "bootstrap/fake_proc_stat")
         if (fakeProcStat.isFile) args.addAll(listOf("-b", "${fakeProcStat.absolutePath}:/proc/stat"))
         args.addAll(listOf("-L", "--link2symlink", "-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
-        args.addAll(listOf("-w", "/root", "/usr/bin/env"))
-        args.addAll(listOf(
-            "HOME=/root",
-            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "LANG=C.UTF-8",
-            "DEBIAN_FRONTEND=noninteractive",
-            // Do not let Android's TMPDIR leak into package maintainer scripts.
-            // It points outside the PRoot rootfs and can make mktemp fail.
-            "TMPDIR=/tmp",
-            "TMP=/tmp",
-            "TEMP=/tmp"
-        ))
-        args.addAll(command)
+        // Do not require /usr/bin/env to be executable in the freshly unpacked rootfs.
+        // PRoot forwards the host process environment to the guest command.
+        // Use / as the initial working directory; /root may not yet be usable on every device.
+        args.addAll(listOf("-w", "/", command.first()))
+        args.addAll(command.drop(1))
 
         val builder = ProcessBuilder(args).directory(bootstrapBin)
         builder.redirectErrorStream(true)
         builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
         builder.environment()["PROOT_L2S_DIR"] = linkDirectory.absolutePath
-        builder.environment()["PWD"] = bootstrapBin.absolutePath
+        builder.environment()["PWD"] = "/"
+        builder.environment()["HOME"] = "/root"
+        builder.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        builder.environment()["LANG"] = "C.UTF-8"
+        builder.environment()["DEBIAN_FRONTEND"] = "noninteractive"
+        builder.environment()["TMPDIR"] = "/tmp"
+        builder.environment()["TMP"] = "/tmp"
+        builder.environment()["TEMP"] = "/tmp"
         builder.environment().remove("LD_PRELOAD")
         builder.environment().remove("LD_LIBRARY_PATH")
         val process = builder.start()
