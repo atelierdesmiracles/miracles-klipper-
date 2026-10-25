@@ -179,26 +179,33 @@ class InitialActivity: AppCompatActivity() {
 
         val architectures = arrayOf("ARM64", "x86_64")
         val selectedArchitecture = prefs.selectedLinuxArchitecture?.takeIf { it == hostArchitecture } ?: hostArchitecture
-        val selected = if (selectedArchitecture == "x86_64") 1 else 0
-        AlertDialog.Builder(this)
+        var selectedIndex = if (selectedArchitecture == "x86_64") 1 else 0
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.architecture_title)
             .setMessage(getString(R.string.architecture_message, hostArchitecture))
             .setCancelable(false)
-            .setSingleChoiceItems(architectures, selected) { dialog, which ->
-                val choice = if (which == 1) LinuxArchitecture.X86_64 else LinuxArchitecture.ARM64
+            .setSingleChoiceItems(architectures, selectedIndex) { _, which ->
+                // Keep the dialog open while the user makes their choice.
+                selectedIndex = which
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.continue_setup) { _, _ ->
+                val choice = if (selectedIndex == 1) LinuxArchitecture.X86_64 else LinuxArchitecture.ARM64
                 if (choice != hostArchitecture) {
                     AlertDialog.Builder(this)
                         .setTitle(R.string.architecture_incompatible_title)
                         .setMessage(getString(R.string.architecture_incompatible_message, choice, hostArchitecture))
-                        .setPositiveButton(android.R.string.ok, null)
+                        .setPositiveButton(android.R.string.ok) { _, _ -> showArchitectureSelectionDialog() }
+                        .setOnCancelListener { showArchitectureSelectionDialog() }
                         .show()
                 } else {
                     prefs.selectedLinuxArchitecture = choice
-                    dialog.dismiss()
                     requestRootAccess()
                 }
             }
-            .show()
+            .create()
+        dialog.setOnCancelListener { finish() }
+        dialog.show()
     }
 
     private fun updateBootstrapSpinnerItems(releases: List<BootstrapItem>) {
