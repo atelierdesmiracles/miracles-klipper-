@@ -178,7 +178,7 @@ class InitialActivity: AppCompatActivity() {
         }
 
         val architectures = arrayOf("ARM64", "x86_64")
-        val selectedArchitecture = prefs.selectedLinuxArchitecture?.takeIf { it.isNotBlank() } ?: hostArchitecture
+        val selectedArchitecture = prefs.selectedLinuxArchitecture?.takeIf { it == hostArchitecture } ?: hostArchitecture
         val selected = if (selectedArchitecture == "x86_64") 1 else 0
         AlertDialog.Builder(this)
             .setTitle(R.string.architecture_title)
