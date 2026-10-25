@@ -65,6 +65,12 @@ class KlipperWebInterfaceRuntimeService : LifecycleService() {
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
+                        // Clean up partially-started Nginx processes before reporting failure.
+                        try {
+                            webInterface.abort()
+                        } catch (_: Exception) {
+                            // Keep the original startup error visible.
+                        }
                         notificationManager.notify(
                             NOTIFICATION_ID,
                             buildNotification(error.message ?: "Could not start the Klipper web interface")
