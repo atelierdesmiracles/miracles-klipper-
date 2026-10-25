@@ -257,10 +257,19 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun ensureBootstrapTools() {
-        val proot = File(context.filesDir, "bootstrap/bin/proot")
+        // Migration: retain only the Android PRoot executable from the old bootstrap.
+        // Debian userspace, rootfs extraction and ttyd are now supplied by Miracle Klipper/Debian.
+        val legacyProot = File(context.filesDir, "bootstrap/bin/proot")
+        val ownedBootstrap = File(baseDirectory, "bootstrap/bin")
+        ensureDirectoryExists(ownedBootstrap)
+        val proot = File(ownedBootstrap, "proot")
+        if (!proot.isFile && legacyProot.isFile) {
+            legacyProot.copyTo(proot, overwrite = true)
+            proot.setExecutable(true, false)
+        }
         if (!proot.isFile || !proot.canExecute()) {
             throw IOException(
-                "Le moteur PRoot Android manque. Installe le composant PRoot de Miracle Klipper avant Debian 13."
+                "Le binaire PRoot Android manque. Réinstalle une version compatible de PRoot pour Miracle Klipper."
             )
         }
     }
@@ -495,7 +504,7 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun runInRootfs(rootfs: File, command: List<String>) {
-        val bootstrapBin = File(context.filesDir, "bootstrap/bin")
+        val bootstrapBin = File(baseDirectory, "bootstrap/bin")
         val proot = File(bootstrapBin, "proot")
         val temporaryDirectory = File(baseDirectory, "tmp")
         // PRoot's link2symlink backing files must live on the rootfs filesystem.
