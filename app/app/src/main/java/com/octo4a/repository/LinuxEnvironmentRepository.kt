@@ -16,6 +16,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.file.Files
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.net.URL
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -254,11 +257,11 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun ensureBootstrapTools() {
-        val bootstrap = File(context.filesDir, "bootstrap")
-        val minitar = File(bootstrap, "bin/minitar")
-        val proot = File(bootstrap, "bin/proot")
-        if (!File(bootstrap, "bootstrap").isDirectory || !minitar.isFile || !proot.isFile) {
-            throw IOException("Install the Octo4a bootstrap before preparing Debian")
+        val proot = File(context.filesDir, "bootstrap/bin/proot")
+        if (!proot.isFile || !proot.canExecute()) {
+            throw IOException(
+                "Le moteur PRoot Android manque. Installe le composant PRoot de Miracle Klipper avant Debian 13."
+            )
         }
     }
 
@@ -330,44 +333,69 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun extractRootfs(archive: File, stagedRootfs: File) {
-        val rawDirectory = File(stagingDirectory, "unpacked")
-        ensureDirectoryExists(rawDirectory)
-        val minitar = File(context.filesDir, "bootstrap/bin/minitar")
-        val process = ProcessBuilder(minitar.absolutePath, "-p")
-            .directory(rawDirectory)
-            .redirectErrorStream(true)
-            .redirectInput(archive)
-            .start()
-        val exitCode = collectProcessOutput(process, "Debian rootfs extraction")
-        if (exitCode != 0) throw IOException("Debian rootfs extraction failed (exit $exitCode)")
-
-        val entries = rawDirectory.listFiles()?.toList().orEmpty()
-        if (entries.size != 1 || !entries[0].isDirectory) {
-            throw IOException("Debian rootfs archive did not have the expected top-level directory")
+        if (stagedRootfs.exists() && !stagedRootfs.deleteRecursively()) {
+            throw IOException("Could not clear the Debian rootfs staging directory")
         }
-        val topLevel = entries[0]
-        if (!File(topLevel, "etc").isDirectory || !File(topLevel, "usr").isDirectory) {
-            throw IOException("Debian rootfs archive has an unexpected directory layout")
-        }
-        if (!stagedRootfs.mkdirs()) throw IOException("Could not create the Debian rootfs staging directory")
-        val children = topLevel.listFiles()?.toList().orEmpty()
-        if (children.isEmpty()) throw IOException("Debian rootfs archive is empty")
-        for (child in children) {
-            if (!child.renameTo(File(stagedRootfs, child.name))) {
-                throw IOException("Could not prepare Debian rootfs entry ${child.name}")
+        ensureDirectoryExists(stagedRootfs)
+        val canonicalRoot = stagedRootfs.canonicalFile
+        val rootPrefix = canonicalRoot.path + File.separator
+        var extractedEntries = 0
+        XZCompressorInputStream(archive.inputStream().buffered()).use { xz ->
+            TarArchiveInputStream(xz).use { tar ->
+                while (true) {
+                    val entry = tar.nextTarEntry ?: break
+                    val normalizedName = entry.name.replace('\\\\', '/')
+                    val components = normalizedName.split('/').filter { it.isNotEmpty() && it != "." }
+                    // proot-distro archives contain a single wrapper directory.
+                    if (components.size <= 1) continue
+                    if (components.any { it == ".." } || normalizedName.startsWith("/")) {
+                        throw IOException("Unsafe path in Debian rootfs archive: ${entry.name}")
+                    }
+                    val relative = components.drop(1).joinToString(File.separator)
+                    if (relative.isEmpty()) continue
+                    val target = File(canonicalRoot, relative).canonicalFile
+                    if (!target.path.startsWith(rootPrefix)) {
+                        throw IOException("Debian rootfs archive entry escapes staging directory")
+                    }
+                    when {
+                        entry.isDirectory -> ensureDirectoryExists(target)
+                        entry.isSymbolicLink -> {
+                            ensureDirectoryExists(target.parentFile)
+                            if (target.exists() || Files.isSymbolicLink(target.toPath())) target.delete()
+                            // Absolute links are intentionally preserved for PRoot's guest-root semantics.
+                            Files.createSymbolicLink(target.toPath(), java.nio.file.Paths.get(entry.linkName))
+                        }
+                        entry.isFile -> {
+                            ensureDirectoryExists(target.parentFile)
+                            FileOutputStream(target).use { output -> tar.copyTo(output) }
+                            if (entry.mode and 0b001001001 != 0) target.setExecutable(true, false)
+                        }
+                        entry.isLink -> {
+                            ensureDirectoryExists(target.parentFile)
+                            val linkParts = entry.linkName.replace('\\\\', '/').split('/')
+                                .filter { it.isNotEmpty() && it != "." }
+                            if (linkParts.any { it == ".." }) {
+                                throw IOException("Unsafe hard link in Debian rootfs archive")
+                            }
+                            val sourceRelative = linkParts.drop(1).joinToString(File.separator)
+                            val source = File(canonicalRoot, sourceRelative).canonicalFile
+                            if (!source.path.startsWith(rootPrefix) || !source.isFile) {
+                                throw IOException("Unsupported hard link in Debian rootfs archive: ${entry.name}")
+                            }
+                            Files.createLink(target.toPath(), source.toPath())
+                        }
+                    }
+                    extractedEntries++
+                }
             }
         }
+        if (extractedEntries == 0) throw IOException("Debian rootfs archive is empty")
         // Android app storage cannot create device nodes. PRoot binds host /dev at runtime.
         val stagedDev = File(stagedRootfs, "dev")
         if (stagedDev.exists() && !stagedDev.deleteRecursively()) {
             throw IOException("Could not remove unsupported Debian /dev device nodes")
         }
-        if (!stagedDev.mkdirs() && !stagedDev.isDirectory) {
-            throw IOException("Could not create Debian /dev mount point")
-        }
-        if (topLevel.exists() && !topLevel.deleteRecursively()) {
-            throw IOException("Could not remove the Debian archive wrapper directory")
-        }
+        ensureDirectoryExists(stagedDev)
         if (!File(stagedRootfs, "usr/bin/env").isFile ||
             !File(stagedRootfs, "usr/bin/apt-get").isFile
         ) {
