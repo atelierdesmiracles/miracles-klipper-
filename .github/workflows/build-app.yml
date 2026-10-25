@@ -75,6 +75,9 @@ jobs:
           java -version
           bash ./gradlew --version
 
+      - name: Validate Linux installer shell syntax
+        run: bash -n app/app/src/main/assets/linux/install-miracle-klipper.sh
+
       - name: Run unit tests
         working-directory: ./app
         run: bash ./gradlew --no-daemon testDebugUnitTest
