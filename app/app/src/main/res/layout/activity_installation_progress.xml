@@ -148,6 +148,15 @@
                 />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/copyDebianLogButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Copier le journal Debian"
+                android:textStyle="bold"
+                app:cornerRadius="16dp" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/clearDataAndRestart"
                 android:layout_width="match_parent"
                 android:background="@android:color/transparent"
