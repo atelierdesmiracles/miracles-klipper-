@@ -22,6 +22,7 @@ import java.net.URL
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.security.MessageDigest
+import java.util.zip.ZipInputStream
 import javax.net.ssl.HttpsURLConnection
 
 enum class LinuxEnvironmentStage {
@@ -256,21 +257,116 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun ensureBootstrapTools() {
-        // Migration: retain only the Android PRoot executable from the old bootstrap.
-        // Debian userspace, rootfs extraction and ttyd are now supplied by Miracle Klipper/Debian.
-        val legacyProot = File(context.filesDir, "bootstrap/bin/proot")
+        // The legacy Octo4a PRoot binary is incompatible with seccomp restrictions on
+        // newer Android versions (chmod/chdir return ENOSYS). Prefer a pinned Android
+        // NDK-built PRoot release for ARM64; keep the old binary only as x86_64 fallback.
         val ownedBootstrap = File(baseDirectory, "bootstrap/bin")
         ensureDirectoryExists(ownedBootstrap)
+
+        if (environmentArchitecture == LinuxArchitecture.ARM64) {
+            val modernDirectory = File(baseDirectory, "bootstrap/proot-modern")
+            val modernProot = File(modernDirectory, "proot")
+            if (!modernProot.isFile || !modernProot.canExecute() ||
+                !File(modernDirectory, "loader").isDirectory
+            ) {
+                installModernArm64Proot(modernDirectory)
+            }
+            return
+        }
+
+        val legacyProot = File(context.filesDir, "bootstrap/bin/proot")
         val proot = File(ownedBootstrap, "proot")
         if (!proot.isFile && legacyProot.isFile) {
             legacyProot.copyTo(proot, overwrite = true)
             proot.setExecutable(true, false)
         }
         if (!proot.isFile || !proot.canExecute()) {
-            throw IOException(
-                "Le binaire PRoot Android manque. Réinstalle une version compatible de PRoot pour Miracle Klipper."
-            )
+            throw IOException("Le binaire PRoot Android manque. Réinstalle une version compatible de PRoot pour Miracle Klipper.")
         }
+    }
+
+    private fun installModernArm64Proot(destination: File) {
+        val archiveUrl = "https://github.com/ahmed-alnassif/proot/releases/download/v26.10.08-a179d3e/proot-aarch64.zip"
+        val expectedSha256 = "d621d71fb68bf07accbada37ffc4208cf4a963eed70916ee68f848cbd9555cc3"
+        val staging = File(baseDirectory, "staging/proot-modern")
+        if (staging.exists() && !staging.deleteRecursively()) {
+            throw IOException("Could not clear the temporary PRoot download")
+        }
+        ensureDirectoryExists(staging)
+        val archive = File(staging, "proot-aarch64.zip")
+        var connection: HttpsURLConnection? = null
+        try {
+            val active = URL(archiveUrl).openConnection() as? HttpsURLConnection
+                ?: throw IOException("Unable to open the compatible PRoot download")
+            connection = active
+            active.connectTimeout = 20000
+            active.readTimeout = 60000
+            active.connect()
+            if (active.responseCode !in 200..299 || active.url.protocol != "https") {
+                throw IOException("Compatible PRoot download failed with HTTP ${active.responseCode}")
+            }
+            active.inputStream.use { input ->
+                FileOutputStream(archive).use { output -> input.copyTo(output) }
+            }
+        } finally {
+            connection?.disconnect()
+        }
+
+        val digest = MessageDigest.getInstance("SHA-256")
+        archive.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+        if (!actualHash.equals(expectedSha256, ignoreCase = true)) {
+            staging.deleteRecursively()
+            throw IOException("Compatible PRoot SHA-256 verification failed")
+        }
+
+        val extracted = File(staging, "extracted")
+        ensureDirectoryExists(extracted)
+        ZipInputStream(archive.inputStream().buffered()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                val normalized = entry.name.replace('\\\\', '/')
+                if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) {
+                    throw IOException("Unsafe path in compatible PRoot archive")
+                }
+                val target = File(extracted, normalized).canonicalFile
+                val prefix = extracted.canonicalPath + File.separator
+                if (target != extracted.canonicalFile && !target.path.startsWith(prefix)) {
+                    throw IOException("Compatible PRoot archive entry escapes staging directory")
+                }
+                if (entry.isDirectory) {
+                    ensureDirectoryExists(target)
+                } else {
+                    ensureDirectoryExists(target.parentFile!!)
+                    FileOutputStream(target).use { output -> zip.copyTo(output) }
+                    target.setExecutable(true, false)
+                }
+                zip.closeEntry()
+            }
+        }
+        val downloadedProot = File(extracted, "proot")
+        val downloadedLoader = File(extracted, "loader")
+        if (!downloadedProot.isFile || !downloadedLoader.isDirectory) {
+            staging.deleteRecursively()
+            throw IOException("Compatible PRoot archive is missing its executable or loader")
+        }
+        if (destination.exists() && !destination.deleteRecursively()) {
+            throw IOException("Could not replace the previous compatible PRoot")
+        }
+        ensureDirectoryExists(destination)
+        if (!downloadedProot.copyTo(File(destination, "proot"), overwrite = true).setExecutable(true, false)) {
+            staging.deleteRecursively()
+            throw IOException("Could not prepare the compatible PRoot executable")
+        }
+        downloadedLoader.copyRecursively(File(destination, "loader"), overwrite = true)
+        staging.deleteRecursively()
     }
 
     private fun ensureStorage(requiredBytes: Long) {
@@ -525,7 +621,8 @@ class LinuxEnvironmentRepositoryImpl(
 
     private fun runInRootfs(rootfs: File, command: List<String>) {
         val bootstrapBin = File(baseDirectory, "bootstrap/bin")
-        val proot = File(bootstrapBin, "proot")
+        val modernProot = File(baseDirectory, "bootstrap/proot-modern/proot")
+        val proot = if (modernProot.isFile && modernProot.canExecute()) modernProot else File(bootstrapBin, "proot")
         val temporaryDirectory = File(baseDirectory, "tmp")
         // Use a private app-owned temporary directory for PRoot's runtime files.
         // Do not enable PRoot's link2symlink emulation here: on some Android kernels
