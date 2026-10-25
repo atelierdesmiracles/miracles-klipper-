@@ -170,7 +170,7 @@ class LinuxEnvironmentRepositoryImpl(
                 ensureSupportedArchitecture()
                 val manifest = loadManifest()
                 manifest.validate()
-                ensureBootstrapTools()
+                ensureBootstrapTools(manifest.rootfs)
                 ensureStorage(manifest.minimumFreeStorageBytes)
 
                 if (stagingDirectory.exists() && !stagingDirectory.deleteRecursively()) {
@@ -256,126 +256,70 @@ class LinuxEnvironmentRepositoryImpl(
         ""
     }
 
-    private fun ensureBootstrapTools() {
-        // The legacy Octo4a PRoot binary is incompatible with seccomp restrictions on
-        // newer Android versions (chmod/chdir return ENOSYS). Prefer a pinned Android
-        // NDK-built PRoot release for ARM64; keep the old binary only as x86_64 fallback.
-        val ownedBootstrap = File(baseDirectory, "bootstrap/bin")
-        ensureDirectoryExists(ownedBootstrap)
-
-        if (environmentArchitecture == LinuxArchitecture.ARM64) {
-            // Keep Octo4a's expected layout: bin/proot resolves its bundled
-            // loader from ../libexec/proot relative to the process working directory.
-            val proot = File(ownedBootstrap, "proot")
-            val loader = File(baseDirectory, "bootstrap/libexec/proot")
-            if (!proot.isFile || !proot.canExecute() ||
-                !loader.isDirectory || loader.listFiles().isNullOrEmpty()
-            ) {
-                installModernArm64Proot(File(baseDirectory, "bootstrap"))
-            }
-            return
-        }
-
-        val legacyProot = File(context.filesDir, "bootstrap/bin/proot")
-        val proot = File(ownedBootstrap, "proot")
-        if (!proot.isFile && legacyProot.isFile) {
-            legacyProot.copyTo(proot, overwrite = true)
-            proot.setExecutable(true, false)
-        }
-        if (!proot.isFile || !proot.canExecute()) {
-            throw IOException("Le binaire PRoot Android manque. Réinstalle une version compatible de PRoot pour Miracle Klipper.")
-        }
-    }
-
-    private fun installModernArm64Proot(destination: File) {
-        val archiveUrl = "https://github.com/ahmed-alnassif/proot/releases/download/v26.10.08-a179d3e/proot-aarch64.zip"
-        val expectedSha256 = "d621d71fb68bf07accbada37ffc4208cf4a963eed70916ee68f848cbd9555cc3"
-        val staging = File(baseDirectory, "staging/proot-modern")
-        if (staging.exists() && !staging.deleteRecursively()) {
-            throw IOException("Could not clear the temporary PRoot download")
-        }
+    private fun ensureBootstrapTools(rootfs: LinuxRootfs) {
+        val bootstrapDirectory = File(baseDirectory, "bootstrap")
+        val proot = File(bootstrapDirectory, "bin/proot")
+        val loader = File(bootstrapDirectory, "libexec/proot")
+        val bundledRootfs = File(bootstrapDirectory, "rootfs/debian-trixie.tar.xz")
+        if (proot.isFile && proot.canExecute() && loader.isDirectory && !loader.listFiles().isNullOrEmpty() && bundledRootfs.isFile) return
+        val arch = when (environmentArchitecture) { LinuxArchitecture.ARM64 -> "arm64"; LinuxArchitecture.X86_64 -> "x86_64" }
+        val baseUrl = "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13"
+        val bundleName = "miracle-klipper-debian13-$arch.zip"
+        val staging = File(baseDirectory, "staging/bootstrap-download")
+        if (staging.exists() && !staging.deleteRecursively()) throw IOException("Could not clear the previous bootstrap download")
         ensureDirectoryExists(staging)
-        val archive = File(staging, "proot-aarch64.zip")
-        var connection: HttpsURLConnection? = null
-        try {
-            val active = URL(archiveUrl).openConnection() as? HttpsURLConnection
-                ?: throw IOException("Unable to open the compatible PRoot download")
-            connection = active
-            active.connectTimeout = 20000
-            active.readTimeout = 60000
-            active.connect()
-            if (active.responseCode !in 200..299 || active.url.protocol != "https") {
-                throw IOException("Compatible PRoot download failed with HTTP ${active.responseCode}")
-            }
-            active.inputStream.use { input ->
-                FileOutputStream(archive).use { output -> input.copyTo(output) }
-            }
-        } finally {
-            connection?.disconnect()
-        }
-
-        val digest = MessageDigest.getInstance("SHA-256")
-        archive.inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                digest.update(buffer, 0, count)
-            }
-        }
-        val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
-        if (!actualHash.equals(expectedSha256, ignoreCase = true)) {
-            staging.deleteRecursively()
-            throw IOException("Compatible PRoot SHA-256 verification failed")
-        }
-
+        val archive = File(staging, bundleName)
+        downloadHttps("$baseUrl/$bundleName", archive)
+        val checksumFile = File(staging, "$bundleName.sha256")
+        downloadHttps("$baseUrl/$bundleName.sha256", checksumFile)
+        val expectedBundleHash = checksumFile.readText().trim().split(Regex("\\s+")).firstOrNull() ?: throw IOException("Miracle Klipper bootstrap checksum file is empty")
+        if (!expectedBundleHash.matches(Regex("[a-fA-F0-9]{64}"))) throw IOException("Miracle Klipper bootstrap checksum file is invalid")
+        val bundleDigest = MessageDigest.getInstance("SHA-256")
+        archive.inputStream().use { input -> val buffer = ByteArray(DEFAULT_BUFFER_SIZE); while (true) { val count = input.read(buffer); if (count < 0) break; bundleDigest.update(buffer, 0, count) } }
+        val actualBundleHash = bundleDigest.digest().joinToString("") { "%02x".format(it) }
+        if (!actualBundleHash.equals(expectedBundleHash, ignoreCase = true)) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap SHA-256 verification failed") }
         val extracted = File(staging, "extracted")
         ensureDirectoryExists(extracted)
         ZipInputStream(archive.inputStream().buffered()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                val normalized = entry.name.replace('\\', '/')
-                if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) {
-                    throw IOException("Unsafe path in compatible PRoot archive")
-                }
+                val normalized = entry.name.replace('\\\\', '/')
+                if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) throw IOException("Unsafe path in Miracle Klipper bootstrap archive")
                 val target = File(extracted, normalized).canonicalFile
                 val prefix = extracted.canonicalPath + File.separator
-                if (target != extracted.canonicalFile && !target.path.startsWith(prefix)) {
-                    throw IOException("Compatible PRoot archive entry escapes staging directory")
-                }
-                if (entry.isDirectory) {
-                    ensureDirectoryExists(target)
-                } else {
-                    ensureDirectoryExists(target.parentFile!!)
-                    FileOutputStream(target).use { output -> zip.copyTo(output) }
-                    target.setExecutable(true, false)
-                }
+                if (target != extracted.canonicalFile && !target.path.startsWith(prefix)) throw IOException("Bootstrap archive entry escapes staging directory")
+                if (entry.isDirectory) ensureDirectoryExists(target) else { ensureDirectoryExists(target.parentFile!!); FileOutputStream(target).use { output -> zip.copyTo(output) } }
                 zip.closeEntry()
             }
         }
-        val downloadedProot = File(extracted, "proot")
-        val downloadedLoader = File(extracted, "loader")
-        if (!downloadedProot.isFile || !downloadedLoader.isDirectory ||
-            downloadedLoader.listFiles().isNullOrEmpty()
-        ) {
-            staging.deleteRecursively()
-            throw IOException("Compatible PRoot archive is missing its executable or loader")
-        }
-
-        val destinationBin = File(destination, "bin")
-        val destinationLoader = File(destination, "libexec/proot")
-        ensureDirectoryExists(destinationBin)
-        if (destinationLoader.exists() && !destinationLoader.deleteRecursively()) {
-            throw IOException("Could not replace the previous PRoot loader")
-        }
-        if (!downloadedProot.copyTo(File(destinationBin, "proot"), overwrite = true).setExecutable(true, false)) {
-            staging.deleteRecursively()
-            throw IOException("Could not prepare the compatible PRoot executable")
-        }
-        downloadedLoader.copyRecursively(destinationLoader, overwrite = true)
+        val manifest = File(extracted, "bootstrap-manifest.txt")
+        val manifestText = if (manifest.isFile) manifest.readText() else ""
+        if (!manifestText.contains("version=13-trixie") || !manifestText.contains("architecture=$arch") || !manifestText.contains("rootfs_sha256=${rootfs.sha256}")) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap metadata does not match this device or Debian manifest") }
+        val extractedProot = File(extracted, "bin/proot")
+        val extractedLoader = File(extracted, "libexec/proot")
+        val extractedRootfs = File(extracted, "rootfs/debian-trixie.tar.xz")
+        if (!extractedProot.isFile || !extractedLoader.isDirectory || extractedLoader.listFiles().isNullOrEmpty() || !extractedRootfs.isFile) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap is incomplete") }
+        if (bootstrapDirectory.exists() && !bootstrapDirectory.deleteRecursively()) throw IOException("Could not replace the old bootstrap directory")
+        ensureDirectoryExists(File(bootstrapDirectory, "bin")); ensureDirectoryExists(File(bootstrapDirectory, "libexec")); ensureDirectoryExists(File(bootstrapDirectory, "rootfs"))
+        extractedProot.copyTo(proot, overwrite = true)
+        if (!proot.setExecutable(true, false)) throw IOException("Could not mark Miracle Klipper PRoot executable")
+        extractedLoader.copyRecursively(loader, overwrite = true)
+        extractedRootfs.copyTo(bundledRootfs, overwrite = true)
+        manifest.copyTo(File(bootstrapDirectory, "bootstrap-manifest.txt"), overwrite = true)
         staging.deleteRecursively()
     }
 
+    private fun downloadHttps(urlText: String, destination: File) {
+        val url = URL(urlText)
+        if (url.protocol != "https") throw IOException("Bootstrap downloads must use HTTPS")
+        var connection: HttpsURLConnection? = null
+        try {
+            val active = url.openConnection() as? HttpsURLConnection ?: throw IOException("Unable to open bootstrap download")
+            connection = active; active.connectTimeout = 20_000; active.readTimeout = 120_000; active.connect()
+            if (active.responseCode !in 200..299 || active.url.protocol != "https") throw IOException("Bootstrap download returned HTTP ${active.responseCode}")
+            active.inputStream.use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
+        } finally { connection?.disconnect() }
+    }
     private fun ensureStorage(requiredBytes: Long) {
         val available = context.filesDir.usableSpace
         if (available < requiredBytes) {
@@ -390,32 +334,27 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun downloadRootfs(rootfs: LinuxRootfs, destination: File) {
-        state.value = LinuxEnvironmentProgress(
-            LinuxEnvironmentStage.Downloading,
-            0,
-            "Downloading Debian 13 rootfs"
-        )
+        state.value = LinuxEnvironmentProgress(LinuxEnvironmentStage.Downloading, 0, "Preparing verified Debian 13 rootfs")
+        val bundledRootfs = File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz")
+        if (bundledRootfs.isFile) {
+            copyAndVerifyRootfs(bundledRootfs, destination, rootfs.sha256)
+            return
+        }
         val url = URL(rootfs.url)
         if (url.protocol != "https") throw IOException("Debian downloads must use HTTPS")
-
         var connection: HttpsURLConnection? = null
         try {
-            val activeConnection = url.openConnection() as? HttpsURLConnection
-                ?: throw IOException("Unable to open the Debian rootfs download")
-            connection = activeConnection
-            activeConnection.connectTimeout = 20_000
-            activeConnection.readTimeout = 60_000
-            activeConnection.connect()
-            val response = activeConnection.responseCode
-            if (response !in 200..299 || activeConnection.url.protocol != "https") {
-                throw IOException("Debian rootfs download returned HTTP $response")
-            }
-
-            val contentLength = activeConnection.contentLength.toLong()
+            val active = url.openConnection() as? HttpsURLConnection ?: throw IOException("Unable to open the Debian rootfs download")
+            connection = active
+            active.connectTimeout = 20_000
+            active.readTimeout = 60_000
+            active.connect()
+            if (active.responseCode !in 200..299 || active.url.protocol != "https") throw IOException("Debian rootfs download returned HTTP ${active.responseCode}")
+            val contentLength = active.contentLength.toLong()
             val digest = MessageDigest.getInstance("SHA-256")
             var downloaded = 0L
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            activeConnection.inputStream.use { input ->
+            active.inputStream.use { input ->
                 FileOutputStream(destination).use { output ->
                     while (true) {
                         val count = input.read(buffer)
@@ -423,26 +362,25 @@ class LinuxEnvironmentRepositoryImpl(
                         output.write(buffer, 0, count)
                         digest.update(buffer, 0, count)
                         downloaded += count
-                        if (contentLength > 0) {
-                            val percent = ((downloaded * 100) / contentLength).toInt().coerceIn(0, 99)
-                            state.value = LinuxEnvironmentProgress(
-                                LinuxEnvironmentStage.Downloading,
-                                percent,
-                                "Downloading Debian 13 rootfs"
-                            )
-                        }
+                        if (contentLength > 0) state.value = LinuxEnvironmentProgress(LinuxEnvironmentStage.Downloading, ((downloaded * 100) / contentLength).toInt().coerceIn(0, 99), "Downloading Debian 13 rootfs")
                     }
                 }
             }
             val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
-            if (!actualHash.equals(rootfs.sha256, ignoreCase = true)) {
-                throw IOException("Debian rootfs checksum verification failed")
-            }
-        } finally {
-            connection?.disconnect()
-        }
+            if (!actualHash.equals(rootfs.sha256, ignoreCase = true)) { destination.delete(); throw IOException("Debian rootfs checksum verification failed") }
+        } finally { connection?.disconnect() }
     }
 
+    private fun copyAndVerifyRootfs(source: File, destination: File, expectedSha256: String) {
+        source.inputStream().use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
+        val digest = MessageDigest.getInstance("SHA-256")
+        destination.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
+        }
+        val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+        if (!actualHash.equals(expectedSha256, ignoreCase = true)) { destination.delete(); throw IOException("Bundled Debian rootfs checksum verification failed") }
+    }
     private fun extractRootfs(archive: File, stagedRootfs: File) {
         if (stagedRootfs.exists() && !stagedRootfs.deleteRecursively()) {
             throw IOException("Could not clear the Debian rootfs staging directory")
