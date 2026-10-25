@@ -75,7 +75,7 @@ class OctoPrintService : LifecycleService() {
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, pendingIntentFlags)
 
         NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("OctoPrint")
+            .setContentTitle("Miracle Klipper setup")
             .setContentText("...")
             .setVibrate(null)
             .setOnlyAlertOnce(true)
@@ -213,7 +213,7 @@ class OctoPrintService : LifecycleService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
-                "Octo4A Notification Channel",
+                "Miracle Klipper setup",
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
