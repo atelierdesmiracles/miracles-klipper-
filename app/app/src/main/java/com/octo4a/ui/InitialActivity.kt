@@ -142,11 +142,15 @@ class InitialActivity: AppCompatActivity() {
             prefs.setupAssistantSkipped = false
             if (!isNetworkConnected()) {
                 Toast.makeText(this, getString(R.string.missing_network), Toast.LENGTH_LONG).show()
-            } else {
-                // Miracle Klipper installs Debian, Klipper, Moonraker and the selected web UI.
-                // Never route a new installation through the legacy OctoPrint bootstrap.
-                prefs.pendingKlipperSetup = true
+            } else if (bootstrapRepository.isBootstrapInstalled) {
                 launchKlipperSetup()
+            } else if (!bootstrapReleaseAvailable) {
+                Toast.makeText(this, getString(R.string.bootstrap_release_unavailable), Toast.LENGTH_LONG).show()
+                installationViewModel.fetchBootstrapReleases()
+            } else {
+                // Install only the PRoot compatibility tools from the bootstrap archive.
+                // The service must not launch the bundled OctoPrint server.
+                continueSetupAfterStoragePermission()
             }
         }
 
@@ -159,6 +163,7 @@ class InitialActivity: AppCompatActivity() {
         retryRootButton.setOnClickListener { requestRootAccess() }
 
         cameraEnumerationRepository.enumerateCameras()
+        if (!bootstrapRepository.isBootstrapInstalled) installationViewModel.fetchBootstrapReleases()
         showArchitectureSelectionDialog()
     }
 
@@ -256,8 +261,9 @@ class InitialActivity: AppCompatActivity() {
     }
 
     private fun updateActionsForRootState() {
-        // Android root and the legacy OctoPrint bootstrap are not required.
-        installButton.isEnabled = rootAuthorized
+        // Root is optional; the bootstrap archive supplies PRoot/minitar needed by Debian.
+        installButton.isEnabled = rootAuthorized &&
+            (bootstrapRepository.isBootstrapInstalled || bootstrapReleaseAvailable)
         skipSetupButton.isEnabled = rootAuthorized
     }
 
@@ -296,10 +302,14 @@ class InitialActivity: AppCompatActivity() {
     }
 
     private fun launchBootstrapInstaller() {
-        // Kept as a compatibility entry point for older callers. New installs must
-        // always use the Debian + Klipper + Moonraker setup, never OctoPrint.
+        if (!bootstrapRepository.isBootstrapInstallItemSelected) {
+            Toast.makeText(this, getString(R.string.bootstrap_not_selected), Toast.LENGTH_LONG).show()
+            return
+        }
         prefs.pendingKlipperSetup = true
-        launchKlipperSetup()
+        startOctoService()
+        startActivity(Intent(this, InstallationActivity::class.java))
+        finish()
     }
 
     private fun launchKlipperSetup() {
@@ -317,6 +327,10 @@ class InitialActivity: AppCompatActivity() {
     private fun isNetworkConnected(): Boolean {
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         return cm.activeNetworkInfo != null && cm.activeNetworkInfo.isConnected
+    }
+
+    private fun startOctoService() {
+        startService(Intent(this, OctoPrintService::class.java))
     }
 
     private fun showLegacyBootstrapDialog() {
