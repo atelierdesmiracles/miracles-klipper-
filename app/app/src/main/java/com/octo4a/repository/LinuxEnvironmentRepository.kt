@@ -527,12 +527,11 @@ class LinuxEnvironmentRepositoryImpl(
         val bootstrapBin = File(baseDirectory, "bootstrap/bin")
         val proot = File(bootstrapBin, "proot")
         val temporaryDirectory = File(baseDirectory, "tmp")
-        // PRoot's link2symlink backing files must live on the rootfs filesystem.
-        // Keeping them in an app-level sibling can make dpkg's temporary hardlink
-        // replacements disappear under Android SELinux while it applies metadata.
-        val linkDirectory = File(rootfs, ".l2s")
+        // Use a private app-owned temporary directory for PRoot's runtime files.
+        // Do not enable PRoot's link2symlink emulation here: on some Android kernels
+        // the legacy Octo4a PRoot build fails chmod/chdir while initializing that layer.
+        // The extracted rootfs uses real hard links where supported by app storage.
         ensureDirectoryExists(temporaryDirectory)
-        ensureDirectoryExists(linkDirectory)
 
         val args = mutableListOf(proot.absolutePath, "-r", rootfs.absolutePath, "-0")
         listOf("/dev", "/proc", "/storage", "/system", "/vendor", "/apex", "/sys")
@@ -542,7 +541,7 @@ class LinuxEnvironmentRepositoryImpl(
         if (serialPipe.exists()) args.addAll(listOf("-b", "${serialPipe.absolutePath}:/dev/ttyOcto4a"))
         val fakeProcStat = File(context.filesDir, "bootstrap/fake_proc_stat")
         if (fakeProcStat.isFile) args.addAll(listOf("-b", "${fakeProcStat.absolutePath}:/proc/stat"))
-        args.addAll(listOf("-L", "--link2symlink", "-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
+        args.addAll(listOf("-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
         // Do not require /usr/bin/env to be executable in the freshly unpacked rootfs.
         // PRoot forwards the host process environment to the guest command.
         // Use / as the initial working directory; /root may not yet be usable on every device.
@@ -553,7 +552,7 @@ class LinuxEnvironmentRepositoryImpl(
         builder.redirectErrorStream(true)
         builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
-        builder.environment()["PROOT_L2S_DIR"] = linkDirectory.absolutePath
+        builder.environment().remove("PROOT_L2S_DIR")
         builder.environment()["PWD"] = "/"
         builder.environment()["HOME"] = "/root"
         builder.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
