@@ -283,7 +283,7 @@ class LinuxEnvironmentRepositoryImpl(
         ZipInputStream(archive.inputStream().buffered()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                val normalized = entry.name.replace('\\\\', '/')
+                val normalized = entry.name.replace('\\', '/')
                 if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) throw IOException("Unsafe path in Miracle Klipper bootstrap archive")
                 val target = File(extracted, normalized).canonicalFile
                 val prefix = extracted.canonicalPath + File.separator
