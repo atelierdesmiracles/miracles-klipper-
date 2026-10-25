@@ -66,12 +66,14 @@ jobs:
           ls -laR build/proot/extracted
           # Upstream ZIPs can contain symlinks; dereference them because Java's
           # ZipInputStream on Android cannot recreate filesystem symlinks.
-          test -e build/proot/extracted/proot
-          test -d build/proot/extracted/loader
+          test -f build/proot/extracted/proot
+          test -f build/proot/extracted/loader
           mkdir -p build/bootstrap/bin build/bootstrap/libexec/proot
-          cp -L build/proot/extracted/proot build/bootstrap/bin/proot
-          cp -aL build/proot/extracted/loader/. build/bootstrap/libexec/proot/
-          chmod 0755 build/bootstrap/bin/proot
+          install -m 0755 build/proot/extracted/proot build/bootstrap/bin/proot
+          install -m 0755 build/proot/extracted/loader build/bootstrap/libexec/proot/loader
+          if [ -f build/proot/extracted/loader-m32 ]; then
+            install -m 0755 build/proot/extracted/loader-m32 build/bootstrap/libexec/proot/loader-m32
+          fi
           test -x build/bootstrap/bin/proot
 
       - name: Add bootstrap metadata and setup helper
