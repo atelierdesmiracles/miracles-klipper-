@@ -288,6 +288,8 @@ class BootstrapRepositoryImpl(
         pb.environment()["HOME"] = "$FILES/bootstrap"
         pb.environment()["LANG"] = "'en_US.UTF-8'"
         pb.environment()["PWD"] = "$FILES/bootstrap"
+        // Android kernels may deny PRoot seccomp/ptrace during initial extraction.
+        pb.environment()["PROOT_NO_SECCOMP"] = "1"
         logger.log(this) {filesPath}
         pb.environment()["EXTRA_BIND"] =
             "-b ${filesPath}:/mnt/external -b /data/data/com.octo4a/files/serialpipe:/dev/ttyOcto4a"
