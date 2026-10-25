@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Miracle Klipper</string>
+    <string name="cancel">Annuler</string>
+    <string name="continue_setup">Continuer</string>
     <string name="architecture_title">Choisir l’architecture Linux</string>
     <string name="architecture_message">Sélectionne l’architecture correspondant au processeur du téléphone. Architecture détectée : %1$s. Une architecture différente ne peut pas démarrer sans émulation.</string>
     <string name="architecture_incompatible_title">Architecture incompatible</string>
