@@ -183,15 +183,17 @@ class InitialActivity: AppCompatActivity() {
         skipSetupButton.isEnabled = false
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) { checkSuperuserAccess() }
-            rootAuthorized = result.first
-            rootStatusText.text = if (rootAuthorized) {
+            // Miracle Klipper runs its Linux environment with PRoot inside the app sandbox.
+            // Android root access is optional and must never block installation.
+            rootAuthorized = true
+            rootStatusText.text = if (result.first) {
                 getString(R.string.setup_root_granted)
             } else {
-                getString(R.string.setup_root_denied, result.second)
+                getString(R.string.setup_non_root_supported)
             }
-            retryRootButton.visibility = if (rootAuthorized) View.GONE else View.VISIBLE
+            retryRootButton.visibility = View.GONE
             updateActionsForRootState()
-            if (rootAuthorized) routeExistingInstallation()
+            routeExistingInstallation()
         }
     }
 
