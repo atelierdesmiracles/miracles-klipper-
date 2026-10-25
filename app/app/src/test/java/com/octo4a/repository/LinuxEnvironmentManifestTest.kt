@@ -10,6 +10,18 @@ class LinuxEnvironmentManifestTest {
     }
 
     @Test
+    fun acceptsPinnedX86_64DebianManifest() {
+        val base = validManifest()
+        val manifest = base.copy(
+            distribution = LinuxDistribution("Debian", "13", "trixie", "x86_64", "x86_64"),
+            rootfs = base.rootfs.copy(
+                url = "https://github.com/termux/proot-distro/releases/download/v4.26.0/debian-trixie-x86_64-pd-v4.26.0.tar.xz"
+            )
+        )
+        manifest.validate()
+    }
+
+    @Test
     fun rejectsUnpinnedRootfsChecksum() {
         val manifest = validManifest()
         assertThrows(IllegalArgumentException::class.java) {
@@ -33,7 +45,7 @@ class LinuxEnvironmentManifestTest {
         rootfs = LinuxRootfs(
             source = "termux/proot-distro",
             sourceRelease = "v4.26.0",
-            url = "https://example.invalid/debian-rootfs.tar.xz",
+            url = "https://github.com/termux/proot-distro/releases/download/v4.26.0/debian-trixie-aarch64-pd-v4.26.0.tar.xz",
             sha256 = "a".repeat(64),
             archiveFormat = "tar.xz",
             stripComponents = 1
