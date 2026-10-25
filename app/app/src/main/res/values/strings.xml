@@ -74,6 +74,7 @@
     <string name="setup_retry_root">Réessayer l’autorisation Magisk</string>
     <string name="setup_root_checking">Demande d’accès superutilisateur à Magisk…</string>
     <string name="setup_root_granted">Accès superutilisateur autorisé par Magisk.</string>
+    <string name="setup_non_root_supported">Mode sans root : installation dans l’espace privé de l’application via PRoot. Le root n’est pas nécessaire.</string>
     <string name="setup_root_denied">Accès root refusé ou indisponible : %1$s. Autorise Miracle Klipper dans Magisk, puis réessaie.</string>
     <string name="setup_root_timeout">Délai dépassé pendant la demande Magisk</string>
     <string name="setup_root_unavailable">Magisk ou la commande su est introuvable</string>
