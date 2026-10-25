@@ -64,13 +64,13 @@ jobs:
           unzip -q build/proot/proot.zip -d build/proot/extracted
           echo "PRoot archive contents, including symlinks:"
           ls -laR build/proot/extracted
-          # The upstream release ZIP stores proot as a symlink on some architectures.
-          # Preserve the entire directory so that its relative symlink targets remain valid.
+          # Upstream ZIPs can contain symlinks; dereference them because Java's
+          # ZipInputStream on Android cannot recreate filesystem symlinks.
           test -e build/proot/extracted/proot
           test -d build/proot/extracted/loader
-          mkdir -p build/bootstrap/bin build/bootstrap/libexec
-          cp -a build/proot/extracted/. build/bootstrap/bin/
-          cp -a build/proot/extracted/loader/. build/bootstrap/libexec/proot/
+          mkdir -p build/bootstrap/bin build/bootstrap/libexec/proot
+          cp -L build/proot/extracted/proot build/bootstrap/bin/proot
+          cp -aL build/proot/extracted/loader/. build/bootstrap/libexec/proot/
           chmod 0755 build/bootstrap/bin/proot
           test -x build/bootstrap/bin/proot
 
