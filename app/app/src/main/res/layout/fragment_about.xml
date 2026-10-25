@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+    <LinearLayout android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical">
+        <TextView android:layout_width="wrap_content"
+                  android:id="@+id/appVersionText"
+                  android:layout_marginHorizontal="22dp"
+                  android:layout_marginTop="22dp"
+                  android:layout_marginBottom="16dp"
+                  android:layout_height="wrap_content"
+                  android:textColor="@android:color/black"
+                  android:textStyle="normal"
+                  android:fontFamily="sans-serif"
+                  android:textSize="16sp"
+                  android:text="Miracle Klipper 0.1.0-alpha.1"/>
+        <com.octo4a.ui.views.StatusView
+                android:layout_width="match_parent"
+                android:layout_margin="8dp"
+                android:id="@+id/appProjectButton"
+                app:icon="@drawable/ic_code_24px"
+                app:iconColor="@color/iconGreen"
+                  app:title="Visit Miracle Klipper on GitHub"
+                  app:subtitle="Based on open-source Octo4a; license notices are preserved"
+                android:layout_height="wrap_content"/>
+        <View style="@style/Divider"
+              android:id="@id/dividerView"/>
+        <com.octo4a.ui.views.StatusView
+                android:layout_width="match_parent"
+                android:layout_margin="8dp"
+                android:id="@+id/joinTelegramButton"
+                app:icon="@drawable/ic_chat_24px"
+                app:iconColor="@android:color/holo_blue_dark"
+                app:title="Octo4a upstream community"
+                app:subtitle="Join the original project chat"
+                android:layout_height="wrap_content"/>
+        <View style="@style/Divider"
+              android:id="@id/dividerView"/>
+        <com.octo4a.ui.views.StatusView
+                android:layout_width="match_parent"
+                android:layout_margin="8dp"
+                android:id="@+id/donateButton"
+                app:icon="@drawable/ic_favorite_24px"
+                app:iconColor="@android:color/holo_red_light"
+                app:title="Support Octo4a upstream"
+                app:subtitle="Thank the original Octo4a developers"
+                android:layout_height="wrap_content"/>
+    </LinearLayout>
+</ScrollView>

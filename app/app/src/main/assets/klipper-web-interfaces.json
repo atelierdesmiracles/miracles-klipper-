@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "minimumFreeStorageBytes": 536870912,
+  "clients": {
+    "mainsail": {
+      "version": "v2.19.0",
+      "repository": "mainsail-crew/mainsail",
+      "url": "https://github.com/mainsail-crew/mainsail/releases/download/v2.19.0/mainsail.zip",
+      "archiveSizeBytes": 3137812,
+      "sha256": "c4d9d96f89851c6ae0709c2f20725447f3fe8c57cf193869b0083441bd93378a"
+    },
+    "fluidd": {
+      "version": "v1.37.7",
+      "repository": "fluidd-core/fluidd",
+      "url": "https://github.com/fluidd-core/fluidd/releases/download/v1.37.7/fluidd.zip",
+      "archiveSizeBytes": 4406335,
+      "sha256": "e45889071dae4e79f22e38bfb28cad0ce0c89e134c09d174cd447c4c93bd9556"
+    }
+  }
+}

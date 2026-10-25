@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+        xmlns:app="http://schemas.android.com/apk/res-auto">
+    <PreferenceCategory
+            app:title="Klipper environment"
+            app:iconSpaceReserved="false">
+        <Preference
+                app:title="Prepare Debian 13 environment"
+                app:key="installKlipperEnvironment"
+                app:iconSpaceReserved="false"
+                app:summary="Downloads Debian and its pinned system tools. Requires about 1.5 GiB free." />
+    </PreferenceCategory>
+    <PreferenceCategory
+            app:title="Klipper engine"
+            app:iconSpaceReserved="false">
+        <Preference
+                app:title="Install Klipper"
+                app:key="installKlipper"
+                app:iconSpaceReserved="false"
+                app:summary="Downloads the pinned Klipper revision and installs its Python dependencies." />
+        <Preference
+                app:title="Start Klipper"
+                app:key="startKlipper"
+                app:iconSpaceReserved="false"
+                app:summary="Starts Klipper after printer.cfg is configured." />
+        <Preference
+                app:title="Stop Klipper"
+                app:key="stopKlipper"
+                app:iconSpaceReserved="false"
+                app:summary="Stops the Klipper host process." />
+    </PreferenceCategory>
+    <PreferenceCategory
+            app:title="Moonraker API"
+            app:iconSpaceReserved="false">
+        <Preference
+                app:title="Install Moonraker"
+                app:key="installMoonraker"
+                app:iconSpaceReserved="false"
+                app:summary="Installs the pinned Moonraker API and Python dependencies." />
+        <Preference
+                app:title="Start Moonraker"
+                app:key="startMoonraker"
+                app:iconSpaceReserved="false"
+                app:summary="Starts the local API and checks its connection to Klipper." />
+        <Preference
+                app:title="Stop Moonraker"
+                app:key="stopMoonraker"
+                app:iconSpaceReserved="false"
+                app:summary="Stops the Moonraker API service." />
+    </PreferenceCategory>
+    <PreferenceCategory
+            app:title="Mainsail / Fluidd"
+            app:summary="@string/klipper_web_interface_summary"
+            app:iconSpaceReserved="false">
+        <Preference
+                app:title="@string/klipper_web_interface_install_mainsail"
+                app:key="installMainsail"
+                app:iconSpaceReserved="false"
+                app:summary="@string/klipper_web_interface_install_mainsail_summary" />
+        <Preference
+                app:title="@string/klipper_web_interface_install_fluidd"
+                app:key="installFluidd"
+                app:iconSpaceReserved="false"
+                app:summary="@string/klipper_web_interface_install_fluidd_summary" />
+        <ListPreference
+                app:title="@string/klipper_web_interface_select"
+                app:key="selectedKlipperWebInterface"
+                app:entries="@array/klipper_web_interface_entries"
+                app:entryValues="@array/klipper_web_interface_values"
+                app:defaultValue="mainsail"
+                app:summary="%s"
+                app:iconSpaceReserved="false" />
+        <Preference
+                app:title="@string/klipper_web_interface_open"
+                app:key="openKlipperWebInterface"
+                app:iconSpaceReserved="false"
+                app:summary="@string/klipper_web_interface_url" />
+        <Preference
+                app:title="@string/klipper_web_interface_stop"
+                app:key="stopKlipperWebInterface"
+                app:iconSpaceReserved="false"
+                app:summary="Stops Nginx and releases port 8080." />
+    </PreferenceCategory>
+    <PreferenceCategory
+            app:title="KlipperScreen sur le téléphone"
+            app:summary="Affiche KlipperScreen avec XServer-XSDL sur l’écran Android."
+            app:iconSpaceReserved="false">
+        <Preference
+                app:title="Install KlipperScreen"
+                app:key="installKlipperScreen"
+                app:iconSpaceReserved="false"
+                app:summary="Installs KlipperScreen and its GTK/Python dependencies in Debian." />
+        <Preference
+                app:title="Get XServer-XSDL for Android"
+                app:key="installXServerXSDL"
+                app:iconSpaceReserved="false"
+                app:summary="Opens the official download page for the Android display app." />
+        <Preference
+                app:title="Open KlipperScreen on this phone"
+                app:key="startKlipperScreen"
+                app:iconSpaceReserved="false"
+                app:summary="Starts XServer-XSDL and KlipperScreen on the phone display." />
+        <Preference
+                app:title="Stop KlipperScreen"
+                app:key="stopKlipperScreen"
+                app:iconSpaceReserved="false"
+                app:summary="Stops the KlipperScreen display process." />
+    </PreferenceCategory>
+    <Preference
+            app:title="Install plugin extras"
+            app:key="installPluginExtras"
+            app:iconSpaceReserved="false"
+            app:summary="Installs extra dependencies for plugins" />
+    <SwitchPreferenceCompat
+            app:iconSpaceReserved="false"
+            app:key="enableBugReporting"
+            app:defaultValue="false"
+            app:title="Enable bug reporting"
+            app:summary="Enables anonymous bug reporting"/>
+    <PreferenceCategory
+            app:title="Server settings"
+            app:iconSpaceReserved="false">
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:iconSpaceReserved="false"
+            app:key="enableSSH"
+            app:summary="Enables SSH access from network"
+            app:title="Enable Dropbear SSH Server" />
+        <EditTextPreference
+                app:dependency="enableSSH"
+                app:key="changeSSHPassword"
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                app:title="Change SSH password for the 'root' user"/>
+        <EditTextPreference
+                app:dependency="enableSSH"
+                app:key="sshPort"
+                app:iconSpaceReserved="false"
+                app:defaultValue="8022"
+                app:singleLineTitle="false"
+                app:title="SSH port"/>
+        <SwitchPreferenceCompat
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                app:key="startOnBoot"
+                app:title="Start on boot"
+                app:defaultValue="false"
+                app:summary="Automatically starts Miracle Klipper on boot"/>
+    </PreferenceCategory>
+    <PreferenceCategory
+            app:title="Camera settings"
+            app:iconSpaceReserved="false">
+        <SwitchPreferenceCompat
+                app:iconSpaceReserved="false"
+                app:singleLineTitle="false"
+                app:key="enableCameraServer"
+                app:title="Enable camera server"
+                app:summary="Enables camera server"/>
+        <ListPreference
+                app:iconSpaceReserved="false"
+                app:key="selectedCamera"
+                app:dependency="enableCameraServer"
+                app:title="Camera source"
+                app:summary="%s"/>
+        <ListPreference
+                app:iconSpaceReserved="false"
+                app:key="selectedResolution"
+                app:dependency="enableCameraServer"
+                app:title="Camera resolution (timelapse/snapshot)"
+                app:summary="%s"/>
+        <ListPreference
+                app:iconSpaceReserved="false"
+                app:key="selectedVideoResolution"
+                app:dependency="enableCameraServer"
+                app:title="Camera resolution (video)"
+                app:summary="%s"/>
+
+        <ListPreference
+                app:iconSpaceReserved="false"
+                app:key="imageRotation"
+                app:entries="@array/rotation_settings"
+                app:entryValues="@array/rotation_settings_values"
+                app:dependency="enableCameraServer"
+                app:defaultValue="0"
+                app:title="Image rotation"
+                app:summary="%s"/>
+
+
+        <ListPreference
+                app:iconSpaceReserved="false"
+                app:key="fpsLimit"
+                app:entries="@array/limit_fps"
+                app:entryValues="@array/limit_fps_values"
+                app:dependency="enableCameraServer"
+                app:defaultValue="-1"
+                app:title="Camera FPS limit"
+                app:summary="%s (Lower FPS reduces CPU usage)"/>
+        <SwitchPreferenceCompat
+                app:iconSpaceReserved="false"
+                app:key="flashWhenObserved"
+                app:dependency="enableCameraServer"
+                app:defaultValue="false"
+                app:title="Turn on flash"
+                app:summary="Turn on flash when camera is being observed"/>
+        <SwitchPreferenceCompat
+                app:iconSpaceReserved="false"
+                app:key="manualAF"
+                app:dependency="enableCameraServer"
+                app:defaultValue="false"
+                app:title="Manual camera focus"
+                app:summary="Adjust in the camera preview dialog."/>
+    </PreferenceCategory>
+
+
+</PreferenceScreen>

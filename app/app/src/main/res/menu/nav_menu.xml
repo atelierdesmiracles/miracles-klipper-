@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+            android:id="@+id/serverNav"
+            android:icon="@drawable/ic_print_24px"
+            android:title="Klipper"/>
+
+    <item
+            android:id="@+id/settingsNav"
+            android:icon="@drawable/ic_settings_24px"
+            android:title="Settings" />
+
+    <item
+        android:id="@+id/extensionsNav"
+        android:icon="@drawable/ic_baseline_extension_24"
+        android:title="Extensions"/>
+
+    <item
+            android:id="@+id/aboutNav"
+            android:icon="@drawable/ic_info_24px"
+            android:title="About"/>
+
+</menu>
