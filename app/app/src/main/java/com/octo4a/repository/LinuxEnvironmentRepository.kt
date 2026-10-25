@@ -608,17 +608,29 @@ class LinuxEnvironmentRepositoryImpl(
         builder.environment().remove("LD_PRELOAD")
         builder.environment().remove("LD_LIBRARY_PATH")
         val process = builder.start()
-        val exitCode = collectProcessOutput(process, command.joinToString(" "))
+        val outputTail = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val operation = command.joinToString(" ")
+        val exitCode = collectProcessOutput(process, operation, outputTail)
         if (exitCode != 0) {
-            throw IOException("Debian command failed with exit code $exitCode: ${command.first()}")
+            val details = synchronized(outputTail) { outputTail.takeLast(20).joinToString("\n") }
+            val suffix = if (details.isBlank()) "" else "\nLast command output:\n$details"
+            throw IOException("Debian command failed with exit code $exitCode: $operation$suffix")
         }
     }
 
-    private fun collectProcessOutput(process: Process, operation: String): Int {
+    private fun collectProcessOutput(
+        process: Process,
+        operation: String,
+        outputTail: MutableList<String>
+    ): Int {
         val reader = Thread({
             try {
                 process.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
+                        synchronized(outputTail) {
+                            outputTail.add(line)
+                            if (outputTail.size > 40) outputTail.removeAt(0)
+                        }
                         synchronized(logFile) {
                             logFile.appendText("$operation: $line\n")
                         }
