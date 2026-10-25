@@ -65,6 +65,7 @@ cors_domains:
 
 [file_manager]
 enable_object_processing: True
+config_path: /var/lib/miracle/printer_data/config
 
 [history]
 
@@ -122,14 +123,64 @@ set -eu
 DATA=/var/lib/miracle/printer_data
 mkdir -p "$DATA/logs" "$DATA/comms"
 if ! pgrep -f '[m]oonraker/moonraker.py' >/dev/null; then
-  nohup /opt/miracle-klipper/venvs/moonraker/bin/python /opt/miracle-klipper/moonraker/moonraker/moonraker.py -c "$DATA/config/moonraker.conf" >> "$DATA/logs/moonraker.log" 2>&1 &
+  nohup /opt/miracle-klipper/venvs/moonraker/bin/python /opt/miracle-klipper/moonraker/moonraker.py -c "$DATA/config/moonraker.conf" >> "$DATA/logs/moonraker.log" 2>&1 &
 fi
 if ! pgrep -f '[n]ginx: master process' >/dev/null; then
   nginx
 fi
+if grep -Eq '^\[mcu\][[:space:]]*
+EOF
+chmod +x /usr/local/bin/miracle-klipper-start
+
+cat > /usr/local/bin/miracle-klipper-stop <<'EOF'
+#!/bin/bash
+set +e
+pkill -f '[m]oonraker/moonraker.py'
+pkill -f '[k]lippy.py'
+nginx -s quit
+EOF
+chmod +x /usr/local/bin/miracle-klipper-stop
+
+cat > /usr/local/bin/miracle-klipper-status <<'EOF'
+#!/bin/bash
+echo "Klipper: installed; start only after configuring printer.cfg"
+if pgrep -f '[m]oonraker/moonraker.py' >/dev/null; then echo "Moonraker: running"; else echo "Moonraker: stopped"; fi
+if pgrep -f '[n]ginx: master process' >/dev/null; then echo "Mainsail/nginx: running"; else echo "Mainsail/nginx: stopped"; fi
+if pgrep -f '[k]lippy.py' >/dev/null; then echo "Klipper: running"; fi
+EOF
+chmod +x /usr/local/bin/miracle-klipper-status
+
+echo "[Miracle Klipper] Installed successfully."
+ "$DATA/config/printer.cfg" && grep -Eq '^\[printer\][[:space:]]*
+EOF
+chmod +x /usr/local/bin/miracle-klipper-start
+
+cat > /usr/local/bin/miracle-klipper-stop <<'EOF'
+#!/bin/bash
+set +e
+pkill -f '[m]oonraker/moonraker.py'
+nginx -s quit
+EOF
+chmod +x /usr/local/bin/miracle-klipper-stop
+
+cat > /usr/local/bin/miracle-klipper-status <<'EOF'
+#!/bin/bash
+echo "Klipper: installed; start only after configuring printer.cfg"
+if pgrep -f '[m]oonraker/moonraker.py' >/dev/null; then echo "Moonraker: running"; else echo "Moonraker: stopped"; fi
+if pgrep -f '[n]ginx: master process' >/dev/null; then echo "Mainsail/nginx: running"; else echo "Mainsail/nginx: stopped"; fi
+EOF
+chmod +x /usr/local/bin/miracle-klipper-status
+
+echo "[Miracle Klipper] Installed successfully."
+ "$DATA/config/printer.cfg"; then
+  if ! pgrep -f '[k]lippy.py' >/dev/null; then
+    nohup /opt/miracle-klipper/venvs/klipper/bin/python /opt/miracle-klipper/klipper/klippy/klippy.py "$DATA/config/printer.cfg" -I /tmp/printer -a "$DATA/comms/klippy.sock" >> "$DATA/logs/klipper.log" 2>&1 &
+  fi
+else
+  echo "Klipper is installed; add valid [mcu] and [printer] sections to printer.cfg before starting the printer service."
+fi
 echo "Mainsail: http://127.0.0.1:8080/"
 echo "Moonraker API: http://127.0.0.1:7125/"
-echo "Klipper is installed but will not be started until printer.cfg contains valid hardware settings."
 EOF
 chmod +x /usr/local/bin/miracle-klipper-start
 
