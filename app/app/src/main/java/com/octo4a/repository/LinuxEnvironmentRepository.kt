@@ -127,7 +127,8 @@ class LinuxEnvironmentRepositoryImpl(
 ) : LinuxEnvironmentRepository {
     private val baseDirectory = File(context.filesDir, "miracle-klipper")
     private val stateDirectory = File(baseDirectory, "state")
-    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-arm64")
+    private val environmentArchitecture = if (Build.SUPPORTED_ABIS.firstOrNull() == "x86_64") "x86_64" else "arm64"
+    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-$environmentArchitecture")
     private val sharedDirectory = File(baseDirectory, "shared")
     private val stagingDirectory = File(baseDirectory, "staging/debian")
     private val logFile = File(baseDirectory, "logs/debian-install.log")
@@ -569,7 +570,7 @@ class LinuxEnvironmentRepositoryImpl(
 
     private fun activateRootfs(stagedRootfs: File, expectedHash: String) {
         ensureDirectoryExists(rootfsDirectory.parentFile!!)
-        val previousRootfs = File(rootfsDirectory.parentFile, "debian-trixie-arm64.previous")
+        val previousRootfs = File(rootfsDirectory.parentFile, "debian-trixie-$environmentArchitecture.previous")
         if (previousRootfs.exists() && !previousRootfs.deleteRecursively()) {
             throw IOException("Could not remove the previous Debian rootfs backup")
         }
