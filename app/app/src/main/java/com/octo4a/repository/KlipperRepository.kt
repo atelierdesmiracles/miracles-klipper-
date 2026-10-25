@@ -261,6 +261,7 @@ class KlipperRepositoryImpl(
             return@withContext
         }
 
+        var startedProcess: ActiveKlipperProcess? = null
         try {
             ensurePrinterDataDirectories()
             ensureDirectoryExists(runtimeLog.parentFile!!)
@@ -282,6 +283,7 @@ class KlipperRepositoryImpl(
             )
             val process = createProotProcess(command, guestPath(source)).start()
             val active = ActiveKlipperProcess(process)
+            startedProcess = active
             synchronized(processLock) {
                 activeProcess = active
             }
@@ -303,13 +305,27 @@ class KlipperRepositoryImpl(
                 throw IOException(message)
             }
         } catch (cancelled: CancellationException) {
+            startedProcess?.let { abortStartupProcess(it) }
             throw cancelled
         } catch (error: Exception) {
+            startedProcess?.let { abortStartupProcess(it) }
             val message = "Klipper could not start: ${error.message ?: error.javaClass.simpleName}"
             state.value = KlipperProgress(KlipperStage.Failed, message, manifest.revision)
             logger.logError(this@KlipperRepositoryImpl, message, error)
             throw IOException(message, error)
         }
+        }
+    }
+
+    private fun abortStartupProcess(active: ActiveKlipperProcess) {
+        synchronized(processLock) {
+            active.stopRequested = true
+            if (activeProcess === active) activeProcess = null
+        }
+        try {
+            active.process.destroy()
+        } catch (error: Exception) {
+            logger.logError(this, "Could not stop Klipper after a startup failure", error)
         }
     }
 
