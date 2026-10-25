@@ -361,6 +361,11 @@ class LinuxEnvironmentRepositoryImpl(
                     }
                     val relative = components.drop(1).joinToString(File.separator)
                     if (relative.isEmpty()) continue
+                    // Android app storage cannot create or safely remove Linux device nodes.
+                    // Do not extract anything under /dev; PRoot binds the host /dev at runtime.
+                    // Skipping it also avoids deleteRecursively() failures on archive-specific
+                    // /dev layouts and symlinks.
+                    if (relative == "dev" || relative.startsWith("dev/")) continue
                     val target = File(canonicalRoot, relative).canonicalFile
                     if (!target.path.startsWith(rootPrefix)) {
                         throw IOException("Debian rootfs archive entry escapes staging directory")
@@ -405,12 +410,9 @@ class LinuxEnvironmentRepositoryImpl(
             }
         }
         if (extractedEntries == 0) throw IOException("Debian rootfs archive is empty")
-        // Android app storage cannot create device nodes. PRoot binds host /dev at runtime.
-        val stagedDev = File(stagedRootfs, "dev")
-        if (stagedDev.exists() && !stagedDev.deleteRecursively()) {
-            throw IOException("Could not remove unsupported Debian /dev device nodes")
-        }
-        ensureDirectoryExists(stagedDev)
+        // /dev entries were skipped during extraction because Android app storage cannot
+        // create Linux device nodes. PRoot supplies the runtime /dev bind mount.
+        ensureDirectoryExists(File(stagedRootfs, "dev"))
         if (!File(stagedRootfs, "usr/bin/env").isFile ||
             !File(stagedRootfs, "usr/bin/apt-get").isFile
         ) {
