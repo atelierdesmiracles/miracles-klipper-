@@ -62,11 +62,17 @@ jobs:
           echo "$PROOT_SHA256  build/proot/proot.zip" | sha256sum --check -
           mkdir -p build/proot/extracted
           unzip -q build/proot/proot.zip -d build/proot/extracted
-          test -x build/proot/extracted/proot
-          test -d build/proot/extracted/loader
-          install -D -m 0755 build/proot/extracted/proot build/bootstrap/bin/proot
+          echo "PRoot archive contents:"
+          find build/proot/extracted -maxdepth 4 -type f -o -type d | sort
+          PROOT_BIN="$(find build/proot/extracted -type f -name proot -print -quit)"
+          LOADER_DIR="$(find build/proot/extracted -type d -name loader -print -quit)"
+          if [ -z "$PROOT_BIN" ] || [ -z "$LOADER_DIR" ]; then
+            echo "Expected proot executable and loader directory were not found in the archive" >&2
+            exit 1
+          fi
+          install -D -m 0755 "$PROOT_BIN" build/bootstrap/bin/proot
           mkdir -p build/bootstrap/libexec
-          cp -a build/proot/extracted/loader build/bootstrap/libexec/proot
+          cp -a "$LOADER_DIR" build/bootstrap/libexec/proot
 
       - name: Add bootstrap metadata and setup helper
         shell: bash
