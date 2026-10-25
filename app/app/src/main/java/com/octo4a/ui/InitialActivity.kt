@@ -215,11 +215,13 @@ class InitialActivity: AppCompatActivity() {
         spinnerArrayAdapter.addAll(releases)
         spinnerArrayAdapter.notifyDataSetChanged()
 
-        val recommendedItem = releases.indexOfFirst { it.recommended }
+        if (releases.isEmpty()) return
 
-        if (recommendedItem > -1) {
-            bootstrapVersionSpinner.setSelection(recommendedItem)
-        }
+        val recommendedItem = releases.indexOfFirst { it.recommended }
+        val selectedIndex = if (recommendedItem >= 0) recommendedItem else 0
+        val selectedRelease = releases[selectedIndex]
+        installationViewModel.selectBootstrapRelease(selectedRelease)
+        bootstrapVersionSpinner.setSelection(selectedIndex)
     }
 
     private fun requestRootAccess() {
