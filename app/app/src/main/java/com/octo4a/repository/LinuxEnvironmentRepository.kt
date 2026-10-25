@@ -153,7 +153,10 @@ class LinuxEnvironmentRepositoryImpl(
                 readExpectedHashOrEmpty(), ignoreCase = true
             ) && File(rootfsDirectory, "usr/bin/env").isFile &&
                 File(rootfsDirectory, "usr/bin/apt-get").isFile &&
-                File(rootfsDirectory, "usr/bin/python3").exists()
+                File(rootfsDirectory, "usr/bin/python3").exists() &&
+                File(baseDirectory, "bootstrap/bin/proot").canExecute() &&
+                File(baseDirectory, "bootstrap/libexec/proot").listFiles()?.isNotEmpty() == true &&
+                File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz").isFile
         }
 
     override suspend fun install() = withContext(Dispatchers.IO) {
