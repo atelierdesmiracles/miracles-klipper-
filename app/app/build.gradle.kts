@@ -127,6 +127,10 @@ dependencies {
     implementation("io.ktor:ktor-client-gson:$ktorVersion")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
+    // Native Android-side extraction of the Debian 13 tar.xz rootfs (no Octo4a minitar).
+    implementation("org.apache.commons:commons-compress:1.27.1")
+    implementation("org.tukaani:xz:1.10")
+
     // Bugsnag bug reporting
     implementation("com.bugsnag:bugsnag-android:5.12.0")
 
