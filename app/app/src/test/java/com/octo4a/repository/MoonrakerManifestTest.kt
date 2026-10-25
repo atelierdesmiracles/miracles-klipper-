@@ -94,7 +94,7 @@ class MoonrakerManifestTest {
         host: 127.0.0.1
         port: 7125
         klippy_uds_address: /var/lib/miracle/printer_data/comms/klippy.sock
-        use_xheaders: False
+        use_xheaders: True
 
         [authorization]
         enable_api_key: True
