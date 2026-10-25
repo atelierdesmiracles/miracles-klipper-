@@ -494,6 +494,25 @@ class LinuxEnvironmentRepositoryImpl(
                 policy.delete()
             }
         }
+        installKlipperStack(rootfs)
+    }
+
+    private fun installKlipperStack(rootfs: File) {
+        state.value = LinuxEnvironmentProgress(
+            LinuxEnvironmentStage.InstallingPackages,
+            90,
+            "Installing Klipper, Moonraker and Mainsail"
+        )
+        val installer = File(rootfs, "tmp/install-miracle-klipper.sh")
+        ensureDirectoryExists(installer.parentFile!!)
+        context.assets.open("linux/install-miracle-klipper.sh").use { input ->
+            FileOutputStream(installer).use { output -> input.copyTo(output) }
+        }
+        if (!installer.setExecutable(true, false)) {
+            throw IOException("Could not prepare the Miracle Klipper installer")
+        }
+        runInRootfs(rootfs, listOf("/bin/bash", "/tmp/install-miracle-klipper.sh"))
+        installer.delete()
     }
 
     private fun verifyEnvironment(rootfs: File) {
