@@ -66,4 +66,4 @@ A printer can move hot components and energize heaters. Keep an accessible physi
 
 ## License
 
-See [LICENSE](LICENSE) for the project's license and attribution terms.
+See [LICENSE](LICENSE.md) for the project's license and attribution terms.
