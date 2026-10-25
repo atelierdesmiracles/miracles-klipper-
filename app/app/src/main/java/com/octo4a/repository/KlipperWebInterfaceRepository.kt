@@ -122,7 +122,8 @@ class KlipperWebInterfaceRepositoryImpl(
     private val logger: LoggerRepository
 ) : KlipperWebInterfaceRepository {
     private val baseDirectory = File(context.filesDir, "miracle-klipper")
-    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-arm64")
+    private val environmentArchitecture = LinuxArchitecture.resolve(context)
+    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-$environmentArchitecture")
     private val sharedDirectory = File(baseDirectory, "shared")
     private val webRootDirectory = File(sharedDirectory, "webui")
     private val nginxDirectory = File(sharedDirectory, "nginx")
