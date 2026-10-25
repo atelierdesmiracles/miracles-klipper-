@@ -12,6 +12,11 @@ class MoonrakerManifestTest {
     }
 
     @Test
+    fun acceptsOfficialRevisionFromOctober2026() {
+        validManifest().copy(revision = "b559b9a81161f958a43c2f527b6ad96f73310d5d").validate()
+    }
+
+    @Test
     fun rejectsFloatingMoonrakerRevision() {
         try {
             validManifest().copy(revision = "master").validate()
