@@ -32,6 +32,7 @@ import com.octo4a.repository.KlipperWebInterface
 import com.octo4a.repository.KlipperWebInterfaceRepository
 import com.octo4a.repository.LinuxEnvironmentRepository
 import com.octo4a.repository.MoonrakerRepository
+import com.octo4a.repository.LinuxArchitecture
 import com.octo4a.service.OctoPrintService
 import com.octo4a.utils.getOutputAsString
 import com.octo4a.utils.preferences.MainPreferences
@@ -161,7 +162,42 @@ class InitialActivity: AppCompatActivity() {
 
         cameraEnumerationRepository.enumerateCameras()
         if (!bootstrapRepository.isBootstrapInstalled) installationViewModel.fetchBootstrapReleases()
-        requestRootAccess()
+        showArchitectureSelectionDialog()
+    }
+
+    private fun showArchitectureSelectionDialog() {
+        val hostArchitecture = LinuxArchitecture.hostArchitecture()
+        if (hostArchitecture == null) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.architecture_title)
+                .setMessage(R.string.architecture_unsupported)
+                .setCancelable(false)
+                .setPositiveButton(android.R.string.ok) { _, _ -> finish() }
+                .show()
+            return
+        }
+
+        val architectures = arrayOf("ARM64", "x86_64")
+        val selected = if (prefs.selectedLinuxArchitecture == "x86_64") 1 else 0
+        AlertDialog.Builder(this)
+            .setTitle(R.string.architecture_title)
+            .setMessage(getString(R.string.architecture_message, hostArchitecture))
+            .setCancelable(false)
+            .setSingleChoiceItems(architectures, selected) { dialog, which ->
+                val choice = if (which == 1) LinuxArchitecture.X86_64 else LinuxArchitecture.ARM64
+                if (choice != hostArchitecture) {
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.architecture_incompatible_title)
+                        .setMessage(getString(R.string.architecture_incompatible_message, choice, hostArchitecture))
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                } else {
+                    prefs.selectedLinuxArchitecture = choice
+                    dialog.dismiss()
+                    requestRootAccess()
+                }
+            }
+            .show()
     }
 
     private fun updateBootstrapSpinnerItems(releases: List<BootstrapItem>) {
