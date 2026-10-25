@@ -71,6 +71,12 @@ class MoonrakerRuntimeService : LifecycleService() {
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
+                        // Avoid leaving a partially-started Moonraker process behind.
+                        try {
+                            moonraker.stop()
+                        } catch (_: Exception) {
+                            // Preserve the original startup failure state.
+                        }
                         withContext(Dispatchers.Main) {
                             stopForeground(true)
                             stopSelf()
