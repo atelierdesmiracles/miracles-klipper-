@@ -33,6 +33,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install "platforms;android-28" "build-tools;30.0.3" "cmake;3.10.2"
+
       - name: Set up Android NDK
         uses: nttld/setup-ndk@v1
         with:
