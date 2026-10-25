@@ -24,7 +24,8 @@ class DebianTerminalRepositoryImpl(
     private val logger: LoggerRepository
 ) : DebianTerminalRepository {
     private val baseDirectory = File(context.filesDir, "miracle-klipper")
-    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-arm64")
+    private val environmentArchitecture = LinuxArchitecture.resolve(context)
+    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-$environmentArchitecture")
     private val sharedDirectory = File(baseDirectory, "shared")
     private val kiauhDirectory = File(sharedDirectory, "kiauh")
     private val kiauhSudoShim = File(sharedDirectory, "kiauh-support/bin/sudo")
