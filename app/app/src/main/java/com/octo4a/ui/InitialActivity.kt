@@ -294,10 +294,8 @@ class InitialActivity: AppCompatActivity() {
     }
 
     private fun continueSetupAfterStoragePermission() {
-        if (!hasStoragePermission) {
-            requestStoragePermission.launch(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE))
-            return
-        }
+        // Bootstrap and Debian data live in the app-private files directory.
+        // Do not block setup on obsolete external-storage permissions on modern Android.
         launchBootstrapInstaller()
     }
 
