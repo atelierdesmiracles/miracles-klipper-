@@ -123,28 +123,19 @@ class OctoPrintHandlerRepositoryImpl(
         try {
             withContext(Dispatchers.IO) {
                 if (!bootstrapRepository.isBootstrapInstalled) {
-                    val octoPrintRelease = githubRepository.getNewestRelease("OctoPrint/OctoPrint")
-                    _octoPrintVersion.emit(octoPrintRelease.tagName)
-
-                    logger.log { "No bootstrap detected, proceeding with installation" }
+                    logger.log { "No PRoot bootstrap detected; preparing compatibility tools for Miracle Klipper" }
                     _serverState.emit(ServerStatus.DownloadingBootstrap)
                     bootstrapRepository.downloadBootstrap()
                     _serverState.emit(ServerStatus.ExtractingBootstrap)
                     bootstrapRepository.extractBootstrap()
-                    logger.log { "Bootstrap installed" }
-                    _serverState.emit(ServerStatus.BootingUp)
-                    insertInitialConfig()
-                    startOctoPrint()
-                    logger.log { "Dependencies installed" }
+                    logger.log { "PRoot bootstrap tools installed; OctoPrint will not be started" }
                 } else {
-                    getExtrasStatus()
-                    startOctoPrint()
-                    if (preferences.enableSSH) {
-                        logger.log { "Enabling ssh" }
-                        startSSH()
-                    }
-                    extensionsRepository.startUpNecessaryExtensions()
+                    logger.log { "PRoot bootstrap tools already installed; skipping legacy OctoPrint startup" }
                 }
+
+                // InstallationActivity uses Running as the completion signal before handing
+                // control to Debian/Klipper/Moonraker setup. Do not invoke startOctoPrint().
+                _serverState.emit(ServerStatus.Running)
             }
         } catch (e: java.lang.Exception) {
             _serverState.emit(ServerStatus.InstallationError)
