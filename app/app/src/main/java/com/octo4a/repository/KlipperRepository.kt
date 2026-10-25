@@ -69,7 +69,7 @@ class KlipperRepositoryImpl(
     private val logger: LoggerRepository
 ) : KlipperRepository {
     private val baseDirectory = File(context.filesDir, "miracle-klipper")
-    private val environmentArchitecture = if (Build.SUPPORTED_ABIS.firstOrNull() == "x86_64") "x86_64" else "arm64"
+    private val environmentArchitecture = LinuxArchitecture.resolve(context)
     private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-$environmentArchitecture")
     private val sharedDirectory = File(baseDirectory, "shared")
     private val softwareDirectory = File(sharedDirectory, "software")
