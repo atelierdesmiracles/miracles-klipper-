@@ -229,21 +229,8 @@ class BootstrapRepositoryImpl(
             runCommand("ls").waitAndPrintOutput(logger)
             logger.log(this) { "Bootstrap extracted, setting it up..." }
 
-            runCommand("chmod -R 755 /mnt/external/").waitAndPrintOutput(
-                logger
-            )
-
-            runCommand("cp -rf /home/octoprint/extensions /mnt/external/").waitAndPrintOutput(
-                logger
-            )
-
-            runCommand("chown root:root /mnt/external/").waitAndPrintOutput(
-                logger
-            )
-            runCommand("mkdir -p /mnt/external/.octoprint/plugins").waitAndPrintOutput(logger)
-            runCommand("cp /home/octoprint/comm-fix.py /mnt/external/.octoprint/plugins").waitAndPrintOutput(
-                logger
-            )
+            // The legacy archive is retained only as a temporary source of the Android PRoot
+            // executable. Miracle Klipper no longer copies or configures any OctoPrint files.
         }
     }
 
