@@ -265,7 +265,7 @@ class LinuxEnvironmentRepositoryImpl(
         val loader = File(bootstrapDirectory, "libexec/proot")
         val bundledRootfs = File(bootstrapDirectory, "rootfs/debian-trixie.tar.xz")
         if (proot.isFile && proot.canExecute() && loader.isDirectory && !loader.listFiles().isNullOrEmpty() && bundledRootfs.isFile) return
-        val arch = when (environmentArchitecture) { LinuxArchitecture.ARM64 -> "arm64"; LinuxArchitecture.X86_64 -> "x86_64" }
+        val arch = when (environmentArchitecture) { LinuxArchitecture.ARM64 -> "arm64"; LinuxArchitecture.X86_64 -> "x86_64"; else -> throw IOException("Unsupported Miracle Klipper bootstrap architecture: $environmentArchitecture") }
         val baseUrl = "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13"
         val bundleName = "miracle-klipper-debian13-$arch.zip"
         val staging = File(baseDirectory, "staging/bootstrap-download")
