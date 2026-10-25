@@ -345,7 +345,17 @@ class LinuxEnvironmentRepositoryImpl(
                 throw IOException("Could not prepare Debian rootfs entry ${child.name}")
             }
         }
-        if (!topLevel.delete()) throw IOException("Could not remove the Debian archive wrapper directory")
+        // Android app storage cannot create device nodes. PRoot binds host /dev at runtime.
+        val stagedDev = File(stagedRootfs, "dev")
+        if (stagedDev.exists() && !stagedDev.deleteRecursively()) {
+            throw IOException("Could not remove unsupported Debian /dev device nodes")
+        }
+        if (!stagedDev.mkdirs() && !stagedDev.isDirectory) {
+            throw IOException("Could not create Debian /dev mount point")
+        }
+        if (topLevel.exists() && !topLevel.deleteRecursively()) {
+            throw IOException("Could not remove the Debian archive wrapper directory")
+        }
         if (!File(stagedRootfs, "usr/bin/env").isFile ||
             !File(stagedRootfs, "usr/bin/apt-get").isFile
         ) {
@@ -473,6 +483,7 @@ class LinuxEnvironmentRepositoryImpl(
 
         val builder = ProcessBuilder(args).directory(bootstrapBin)
         builder.redirectErrorStream(true)
+        builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
         builder.environment()["PROOT_L2S_DIR"] = linkDirectory.absolutePath
         builder.environment()["PWD"] = bootstrapBin.absolutePath
