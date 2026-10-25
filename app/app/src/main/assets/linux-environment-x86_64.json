@@ -73,8 +73,7 @@
       "unzip",
       "procps",
       "iproute2",
-      "net-tools",
-      "ttyd"
+      "net-tools"
     ],
     "klipperMcuToolchain": [
       "avrdude",
