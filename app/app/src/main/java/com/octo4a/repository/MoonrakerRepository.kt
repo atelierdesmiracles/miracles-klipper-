@@ -631,6 +631,7 @@ class MoonrakerRepositoryImpl(
         args.addAll(command)
 
         val builder = ProcessBuilder(args).directory(bootstrapBin).redirectErrorStream(true)
+        builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
         builder.environment()["PROOT_L2S_DIR"] = linkDirectory.absolutePath
         builder.environment()["PWD"] = bootstrapBin.absolutePath
