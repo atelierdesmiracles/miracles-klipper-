@@ -13,8 +13,8 @@ internal object BootstrapArchiveSafety {
         // them before resolving the canonical target.
         if (
             entryName.isBlank() ||
-            entryName.indexOf('\\u0000') >= 0 ||
-            entryName.contains('\\\\') ||
+            entryName.any { it == 0.toChar() } ||
+            entryName.contains(92.toChar()) ||
             File(entryName).isAbsolute ||
             entryName.startsWith('/')
         ) {
