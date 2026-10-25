@@ -1,5 +1,10 @@
 <resources>
     <string name="app_name">Miracle Klipper</string>
+    <string name="architecture_title">Choisir l’architecture Linux</string>
+    <string name="architecture_message">Sélectionne l’architecture correspondant au processeur du téléphone. Architecture détectée : %1$s. Une architecture différente ne peut pas démarrer sans émulation.</string>
+    <string name="architecture_incompatible_title">Architecture incompatible</string>
+    <string name="architecture_incompatible_message">Tu as choisi %1$s, mais ce téléphone fonctionne en %2$s. Choisis %2$s pour que Debian, Klipper et Moonraker puissent démarrer.</string>
+    <string name="architecture_unsupported">Ce téléphone ne prend en charge ni ARM64 ni x86_64. Miracle Klipper ne peut pas installer cet environnement Linux.</string>
     <string name="app_version_format">Miracle Klipper %1$s • Octo4a bootstrap %2$s</string>
     <string name="landing_install">Installer Miracle Klipper</string>
     <string name="landing_no_installation">Préparation de l’environnement</string>
