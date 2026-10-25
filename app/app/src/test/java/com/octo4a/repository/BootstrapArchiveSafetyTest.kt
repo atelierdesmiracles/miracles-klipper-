@@ -63,7 +63,7 @@ class BootstrapArchiveSafetyTest {
         val staging = Files.createTempDirectory("bootstrap-safety").toFile()
 
         try {
-            BootstrapArchiveSafety.resolveEntryTarget(staging, "etc/\\u0000profile")
+            BootstrapArchiveSafety.resolveEntryTarget(staging, "etc/\u0000profile")
         } finally {
             staging.deleteRecursively()
         }
