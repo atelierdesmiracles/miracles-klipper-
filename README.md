@@ -15,6 +15,7 @@ Miracle Klipper is an Android-hosted Klipper project based on the existing Octo4
 ## Requirements
 
 - Android device running Android 8.0 (API 26) or later, subject to device compatibility.
+- **Root is not required.** The Linux environment runs in the app's private storage using PRoot; Android root/Magisk access is optional. USB OTG and device compatibility still apply.
 - USB OTG support and a suitable USB cable/hub for the printer controller.
 - A compatible printer MCU and Klipper configuration.
 - A computer with Git, JDK 11, Android SDK/NDK, and internet access for development builds.
