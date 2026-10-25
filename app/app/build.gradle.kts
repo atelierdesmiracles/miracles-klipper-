@@ -128,10 +128,10 @@ dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
 
     // Native Android-side extraction of the Debian 13 tar.xz rootfs (no Octo4a minitar).
-    implementation("org.apache.commons:commons-compress:1.26.2")
+    implementation("org.apache.commons:commons-compress:1.21")
     implementation("org.tukaani:xz:1.9")
-    // Keep dependencies compatible with the existing Android Gradle Plugin / D8 toolchain.
-    implementation("org.apache.commons:commons-lang3:3.14.0")
+    // Pin older Java 8-compatible Apache Commons artifacts to avoid D8 crashes with newer bytecode.
+    implementation("org.apache.commons:commons-lang3:3.12.0")
 
     // Bugsnag bug reporting
     implementation("com.bugsnag:bugsnag-android:5.12.0")
