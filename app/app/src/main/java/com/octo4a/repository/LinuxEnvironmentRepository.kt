@@ -55,8 +55,14 @@ internal data class LinuxEnvironmentManifest(
         require(schemaVersion == 1) { "Unsupported Linux environment manifest" }
         require(distribution.name == "Debian" && distribution.version == "13" &&
             distribution.codename == "trixie") { "Only Debian 13 Trixie is supported" }
-        require(distribution.architecture == "arm64" &&
-            distribution.androidAbi == "arm64-v8a") { "Unsupported Debian architecture" }
+        require(
+            (distribution.architecture == "arm64" && distribution.androidAbi == "arm64-v8a") ||
+                (distribution.architecture == "x86_64" && distribution.androidAbi == "x86_64")
+        ) { "Unsupported Debian architecture" }
+        require(
+            (distribution.architecture == "arm64" && rootfs.url.contains("debian-trixie-aarch64-")) ||
+                (distribution.architecture == "x86_64" && rootfs.url.contains("debian-trixie-x86_64-"))
+        ) { "Debian rootfs architecture does not match the Android ABI" }
         require(rootfs.source == "termux/proot-distro")
         require(rootfs.url.startsWith("https://")) { "The Debian rootfs must use HTTPS" }
         require(rootfs.sha256.matches(Regex("[a-fA-F0-9]{64}"))) {
@@ -223,13 +229,18 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun ensureSupportedArchitecture() {
-        if (Build.SUPPORTED_ABIS.none { it == "arm64-v8a" }) {
-            throw IOException("This Debian environment currently requires an ARM64 Android device")
+        if (Build.SUPPORTED_ABIS.none { it == "arm64-v8a" || it == "x86_64" }) {
+            throw IOException("Miracle Klipper requires an ARM64 or x86_64 Android device")
         }
     }
 
     private fun loadManifest(): LinuxEnvironmentManifest {
-        return context.assets.open("linux-environment.json").bufferedReader().use { reader ->
+        val assetName = if (Build.SUPPORTED_ABIS.firstOrNull() == "x86_64") {
+            "linux-environment-x86_64.json"
+        } else {
+            "linux-environment.json"
+        }
+        return context.assets.open(assetName).bufferedReader().use { reader ->
             Gson().fromJson(reader, LinuxEnvironmentManifest::class.java)
                 ?: throw IOException("The Debian environment manifest is empty")
         }
