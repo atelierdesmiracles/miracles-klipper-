@@ -1,57 +1,104 @@
-name: Build app
-on: [pull_request, push]
+name: Android CI
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Build and test Android app
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the code
+      - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup JDK 11
+
+      - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
-      - name: Setup ndk
+          java-version: "11"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Android NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r21d
-      - name: Build the app
-        run: |
-          ./gradlew assembleRelease
+          add-to-path: false
+
+      - name: Show toolchain versions
         working-directory: ./app
-      - name: Setup build tool version variable
-        shell: bash
         run: |
-          BUILD_TOOL_VERSION=$(ls /usr/local/lib/android/sdk/build-tools/ | tail -n 1)
-          echo "BUILD_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
-          echo Last build tool version is: $BUILD_TOOL_VERSION
-      - uses: r0adkll/sign-android-release@v1
-        name: Sign app APK
-        id: sign_app
-        with:
-          releaseDirectory: app/app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: ${{ env.BUILD_TOOL_VERSION }}
-      - name: Upload artifacts
+          java -version
+          ./gradlew --version
+
+      - name: Run unit tests
+        working-directory: ./app
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Build debug APK
+        working-directory: ./app
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Build release APK
+        working-directory: ./app
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Upload APKs and test reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Signed app
-          path: ${{steps.sign_app.outputs.signedReleaseFile}}
-      - name: Get the version
-        if: startsWith(github.ref, 'refs/tags/')
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-      - name: Move and name release
-        if: startsWith(github.ref, 'refs/tags/')
-        run: mv ${{steps.sign_app.outputs.signedReleaseFile}} miracle-klipper-${{steps.get_version.outputs.VERSION}}.apk
-      - name: Create github release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+          name: miracle-klipper-ci-${{ github.run_number }}
+          if-no-files-found: warn
+          path: |
+            app/app/build/outputs/apk/**/*.apk
+            app/app/build/reports/tests/**
+            app/app/build/test-results/**
+
+  release:
+    name: Publish unsigned test APK
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download CI artifacts
+        uses: actions/download-artifact@v4
         with:
-          files: miracle-klipper-${{steps.get_version.outputs.VERSION}}.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: miracle-klipper-ci-${{ github.run_number }}
+          path: release-artifacts
+
+      - name: Prepare release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$(find release-artifacts -type f -name '*release*.apk' -print -quit)"
+          if [ -z "$apk" ]; then
+            echo "Release APK not found in CI artifacts" >&2
+            find release-artifacts -maxdepth 6 -type f -print
+            exit 1
+          fi
+          cp "$apk" "Miracle-Klipper-${GITHUB_REF_NAME}-unsigned.apk"
+          sha256sum "Miracle-Klipper-${GITHUB_REF_NAME}-unsigned.apk" > "Miracle-Klipper-${GITHUB_REF_NAME}-SHA256SUMS.txt"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            Miracle-Klipper-${{ github.ref_name }}-unsigned.apk
+            Miracle-Klipper-${{ github.ref_name }}-SHA256SUMS.txt
