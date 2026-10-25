@@ -264,7 +264,7 @@ class InitialActivity: AppCompatActivity() {
     private fun routeExistingInstallation() {
         // Existing Octo4a/OctoPrint bootstrap files are legacy data and must not
         // block the Miracle Klipper Debian/PRoot setup flow.
-        if (prefs.pendingKlipperSetup && bootstrapRepository.isBootstrapInstalled) {
+        if (prefs.pendingKlipperSetup) {
             launchKlipperSetup()
             return
         }
