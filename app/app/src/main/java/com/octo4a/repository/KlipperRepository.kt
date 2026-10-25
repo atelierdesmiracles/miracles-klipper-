@@ -258,7 +258,7 @@ class KlipperRepositoryImpl(
         }
         if (existing != null) {
             state.value = KlipperProgress(KlipperStage.Running, "Klipper host process is running", manifest.revision)
-            return@withContext
+            return@withLock
         }
 
         var startedProcess: ActiveKlipperProcess? = null
