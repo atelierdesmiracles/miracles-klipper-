@@ -367,7 +367,14 @@ class LinuxEnvironmentRepositoryImpl(
                         }
                         entry.isFile -> {
                             ensureDirectoryExists(target.parentFile)
-                            FileOutputStream(target).use { output -> tar.copyTo(output) }
+                            FileOutputStream(target).use { output ->
+                                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                while (true) {
+                                    val count = tar.read(buffer)
+                                    if (count < 0) break
+                                    output.write(buffer, 0, count)
+                                }
+                            }
                             if (entry.mode and 0b001001001 != 0) target.setExecutable(true, false)
                         }
                         entry.isLink -> {
