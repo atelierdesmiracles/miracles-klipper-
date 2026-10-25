@@ -8,7 +8,16 @@ internal object BootstrapArchiveSafety {
     const val MINIMUM_FREE_SPACE_BYTES = 64L * 1024L * 1024L
 
     fun resolveEntryTarget(stagingDirectory: File, entryName: String): File {
-        if (entryName.isBlank() || entryName.indexOf('\u0000') >= 0 || entryName.contains('\\')) {
+        // Archive entry names must be relative paths. File(parent, child) can
+        // normalize absolute child paths differently across platforms, so reject
+        // them before resolving the canonical target.
+        if (
+            entryName.isBlank() ||
+            entryName.indexOf('\\u0000') >= 0 ||
+            entryName.contains('\\\\') ||
+            File(entryName).isAbsolute ||
+            entryName.startsWith('/')
+        ) {
             throw IOException("Invalid bootstrap archive entry name")
         }
 
