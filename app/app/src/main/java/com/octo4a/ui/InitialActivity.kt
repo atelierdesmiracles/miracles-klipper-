@@ -49,34 +49,7 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 import java.util.concurrent.TimeUnit
 import java.io.File
 
-class BootstrapSpinnerAdapter(context: Context, @LayoutRes private val layoutResource: Int, private val releases: List<BootstrapItem>):
-    ArrayAdapter<BootstrapItem>(context, layoutResource, releases) {
-    override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-        return createViewFromResource(position, convertView, parent)
-    }
-
-    override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup?): View {
-        return createViewFromResource(position, convertView, parent)
-    }
-
-    private fun createViewFromResource(position: Int, convertView: View?, parent: ViewGroup?): View{
-        val view = convertView ?: LayoutInflater.from(context).inflate(layoutResource, parent, false)
-        val release = releases[position]
-        view.octoprintVersion.text = release.title
-
-        var bootstrapVersionText = release.bootstrapVersion
-
-        if (release.recommended) {
-            bootstrapVersionText += " • recommended"
-        } else if (release.prerelease) {
-            bootstrapVersionText += " • prerelease"
-        }
-        view.bootstrapVersion.text = bootstrapVersionText
-        return view
-    }
-}
 class InitialActivity: AppCompatActivity() {
-    private val bootstrapRepository: BootstrapRepository by inject()
     private val prefs: MainPreferences by inject()
     private val cameraEnumerationRepository: CameraEnumerationRepository by inject()
     private val linuxEnvironment: LinuxEnvironmentRepository by inject()
@@ -84,8 +57,6 @@ class InitialActivity: AppCompatActivity() {
     private val moonraker: MoonrakerRepository by inject()
     private val klipperScreen: KlipperScreenRepository by inject()
     private val webInterface: KlipperWebInterfaceRepository by inject()
-    private val installationViewModel: InstallationViewModel by viewModel()
-    private val spinnerArrayAdapter: BootstrapSpinnerAdapter by lazy { BootstrapSpinnerAdapter(this, R.layout.bootstrap_spinner_view, mutableListOf()) }
     private var rootAuthorized = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -209,7 +180,7 @@ class InitialActivity: AppCompatActivity() {
     }
 
     private fun updateActionsForRootState() {
-        // Root is optional; the bootstrap archive supplies PRoot/minitar needed by Debian.
+        // Root is optional; LinuxEnvironmentRepository downloads and verifies Miracle Klipper's own PRoot bundle.
         installButton.isEnabled = rootAuthorized
         skipSetupButton.isEnabled = rootAuthorized
     }
