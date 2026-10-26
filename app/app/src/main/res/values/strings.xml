@@ -10,7 +10,7 @@
     <string name="app_version_format">Miracle Klipper %1$s • Runtime Debian %2$s</string>
     <string name="landing_install">Installer Miracle Klipper</string>
     <string name="landing_no_installation">Préparation de l’environnement</string>
-    <string name="landing_description">Miracle Klipper prépare Debian 13, Klipper et Moonraker, puis installe l’interface web de ton choix : Mainsail ou Fluidd. Aucun accès root ni serveur Miracle Klipper n’est nécessaire. Une connexion Internet et plusieurs gigaoctets libres sont requis. Configure ensuite l’imprimante et son câble USB OTG.</string>
+    <string name="landing_description">Miracle Klipper prépare Debian 13, Klipper et Moonraker, puis installe l’interface web de ton choix : Mainsail ou Fluidd. Aucun accès root n’est nécessaire : l’environnement Linux fonctionne dans l’espace privé de l’application. Une connexion Internet et plusieurs gigaoctets libres sont requis. Configure ensuite l’imprimante et son câble USB OTG.</string>
     <string name="installation_step_downloading">Téléchargement de l’environnement (%1$s)…</string>
     <string name="installation_step_extracting">Extraction de l’environnement (%1$s)…</string>
     <string name="installation_step_bootup">Préparation de l’environnement Linux…</string>
