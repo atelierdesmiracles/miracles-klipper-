@@ -120,28 +120,12 @@ class OctoPrintHandlerRepositoryImpl(
         }
 
     override suspend fun beginInstallation() {
-        try {
-            withContext(Dispatchers.IO) {
-                if (!bootstrapRepository.isBootstrapInstalled) {
-                    logger.log { "No PRoot bootstrap detected; preparing compatibility tools for Miracle Klipper" }
-                    _serverState.emit(ServerStatus.DownloadingBootstrap)
-                    bootstrapRepository.downloadBootstrap()
-                    _serverState.emit(ServerStatus.ExtractingBootstrap)
-                    bootstrapRepository.extractBootstrap()
-                    logger.log { "PRoot bootstrap tools installed; OctoPrint will not be started" }
-                } else {
-                    logger.log { "PRoot bootstrap tools already installed; skipping legacy OctoPrint startup" }
-                }
-
-                // InstallationActivity uses Running as the completion signal before handing
-                // control to Debian/Klipper/Moonraker setup. Do not invoke startOctoPrint().
-                _serverState.emit(ServerStatus.Running)
-            }
-        } catch (e: java.lang.Exception) {
-            _serverState.emit(ServerStatus.InstallationError)
-            val appError = errorHandler.report("Linux environment", "Installation", e)
-            _installErrorDescription.emit(appError.message)
-        }
+        // Legacy OctoPrint/Octo4a bootstrap installation is intentionally disabled.
+        // Miracle Klipper provisions PRoot, Debian 13 and the Klipper stack through
+        // LinuxEnvironmentRepository and the dedicated setup screen.
+        _serverState.emit(ServerStatus.Running)
+        _installErrorDescription.emit("")
+        logger.log { "Legacy OctoPrint bootstrap skipped; use the Miracle Klipper setup flow" }
     }
 
     override fun getExtrasStatus() {
