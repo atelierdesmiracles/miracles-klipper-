@@ -277,7 +277,7 @@ class BootstrapRepositoryImpl(
         pb.environment()["PROOT_NO_SECCOMP"] = "1"
         logger.log(this) {filesPath}
         pb.environment()["EXTRA_BIND"] =
-            "-b ${filesPath}:/mnt/external -b $appFilesPath/serialpipe:/dev/ttyMiracleKlipper"
+            "-b ${filesPath}:/mnt/external -b $appFilesPath/serialpipe:/dev/ttyOcto4a"
         pb.environment()["PATH"] =
             "/sbin:/system/sbin:/product/bin:/apex/com.android.runtime/bin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin"
         pb.directory(File("$FILES/bootstrap"))
