@@ -140,7 +140,7 @@ class OctoPrintService : LifecycleService() {
     }
 
     fun verifyPtyRunning() {
-        val ptyFile = File("/data/data/com.octo4a/files/serialpipe")
+        val ptyFile = File(filesDir, "serialpipe")
         if (!ptyFile.exists()) {
             virtualSerialDriver.initializeVSP()
             virtualSerialDriver.handlePtyThread()
