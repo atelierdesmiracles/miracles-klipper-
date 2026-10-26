@@ -129,39 +129,14 @@ class OctoPrintHandlerRepositoryImpl(
     }
 
     override fun getExtrasStatus() {
-        val file = File("/data/data/com.octo4a/files/bootstrap/bootstrap/usr/bin/g++")
-
-        if (file.exists()) {
-            _extrasStatus.value = ExtrasStatus.Installed
-        } else if (_extrasStatus.value != ExtrasStatus.Installing) {
-            _extrasStatus.value = ExtrasStatus.NotInstalled
-        }
+        // OctoPrint plugin extras are not part of Miracle Klipper's runtime.
+        _extrasStatus.value = ExtrasStatus.NotInstalled
     }
 
     override fun installExtras() {
-        if (_extrasStatus.value == ExtrasStatus.NotInstalled) {
-            Thread {
-                _extrasStatus.value = ExtrasStatus.Installing
-                var installSucceeded = false
-                try {
-                    retryOperation(logger, maxRetries = 2) {
-                        bootstrapRepository.runCommand("curl -s https://raw.githubusercontent.com/feelfreelinux/octo4a/master/scripts/setup-plugin-extras.sh | bash -s")
-                            .waitAndPrintOutput(
-                                logger
-                            )
-                    }
-                    installSucceeded = true
-                } catch (e: java.lang.Exception) {
-                    errorHandler.report("Extensions", "Install optional packages", e)
-                }
-
-                _extrasStatus.value = if (installSucceeded) {
-                    ExtrasStatus.Installed
-                } else {
-                    ExtrasStatus.NotInstalled
-                }
-            }.start()
-        }
+        // Deliberately disabled: do not run scripts from the legacy Octo4a project.
+        _extrasStatus.value = ExtrasStatus.NotInstalled
+        logger.log { "Legacy OctoPrint plugin extras are disabled in Miracle Klipper" }
     }
 
     fun getPid(p: Process): Int {
