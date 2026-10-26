@@ -1,0 +1,42 @@
+name: Miracle Klipper Android build
+
+on:
+  push:
+    branches:
+      - miracle-klipper-next
+    paths:
+      - "app/**"
+      - ".github/workflows/miracle-klipper-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+          cache: gradle
+          cache-dependency-path: app/**/*.gradle*
+
+      - name: Build debug APK
+        working-directory: app
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: miracle-klipper-debug
+          path: app/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
