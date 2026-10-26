@@ -10,11 +10,11 @@ android {
     compileSdk = 28
     buildToolsVersion = "30.0.3"
     defaultConfig {
-        applicationId = "com.octo4a"
+        applicationId = "fr.atelierdesmiracles.miracleklipper"
         minSdk = 26
         targetSdk = 28
-        versionName = "0.1.0-alpha.1"
-        versionCode = 2001001
+        versionName = "0.2.0-alpha.1"
+        versionCode = 2002001
         multiDexEnabled = true
 
         ndk {
