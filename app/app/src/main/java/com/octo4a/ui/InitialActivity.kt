@@ -87,24 +87,6 @@ class InitialActivity: AppCompatActivity() {
     private val installationViewModel: InstallationViewModel by viewModel()
     private val spinnerArrayAdapter: BootstrapSpinnerAdapter by lazy { BootstrapSpinnerAdapter(this, R.layout.bootstrap_spinner_view, mutableListOf()) }
     private var rootAuthorized = false
-    private var bootstrapReleaseAvailable = false
-
-    // Storage permission request
-    private val hasStoragePermission: Boolean
-        get() = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-
-    // Detects legacy (<1.0.0) release bootstrap
-    private val pre1LegacyBootstrapInstalled by lazy { File("/data/data/com.octo4a/files/home").exists() }
-    private val legacyBootstrapInstalled by lazy { File("/data/data/com.octo4a/files/bootstrap/add-user.sh").exists() }
-
-    private val requestStoragePermission =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { isGranted ->
-            if (isGranted.values.all { it }) {
-                launchBootstrapInstaller()
-            } else {
-                Toast.makeText(this, getString(R.string.missing_write_permission), Toast.LENGTH_LONG).show()
-            }
-        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,22 +98,6 @@ class InitialActivity: AppCompatActivity() {
         supportActionBar?.hide()
         setContentView(R.layout.activity_landing)
 
-        installationViewModel.bootstrapReleases.observe(this) {
-            updateBootstrapSpinnerItems(it)
-            bootstrapReleaseAvailable = it.isNotEmpty() && bootstrapRepository.isBootstrapInstallItemSelected
-            if (rootAuthorized) updateActionsForRootState()
-        }
-
-        // Setup spinner's adapter
-        spinnerArrayAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        bootstrapVersionSpinner.adapter = spinnerArrayAdapter
-        bootstrapVersionSpinner?.onItemSelectedListener = object : AdapterView.OnItemSelectedListener{
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                installationViewModel.selectBootstrapRelease(spinnerArrayAdapter.getItem(position)!!)
-            }
-        }
-
         val selectedWeb = KlipperWebInterface.fromPreference(prefs.selectedKlipperWebInterface)
         webInterfaceChoice.check(if (selectedWeb == KlipperWebInterface.Fluidd) R.id.chooseFluidd else R.id.chooseMainsail)
         installButton.isEnabled = false
@@ -142,15 +108,10 @@ class InitialActivity: AppCompatActivity() {
             prefs.setupAssistantSkipped = false
             if (!isNetworkConnected()) {
                 Toast.makeText(this, getString(R.string.missing_network), Toast.LENGTH_LONG).show()
-            } else if (bootstrapRepository.isBootstrapInstalled) {
-                launchKlipperSetup()
-            } else if (!bootstrapReleaseAvailable) {
-                Toast.makeText(this, getString(R.string.bootstrap_release_unavailable), Toast.LENGTH_LONG).show()
-                installationViewModel.fetchBootstrapReleases()
             } else {
-                // Install only the PRoot compatibility tools from the bootstrap archive.
-                // The service must not launch the bundled OctoPrint server.
-                continueSetupAfterStoragePermission()
+                // Install through Miracle Klipper's own verified PRoot bundle and Debian rootfs.
+                // Do not download or launch the legacy Octo4a runtime.
+                launchKlipperSetup()
             }
         }
 
@@ -163,7 +124,6 @@ class InitialActivity: AppCompatActivity() {
         retryRootButton.setOnClickListener { requestRootAccess() }
 
         cameraEnumerationRepository.enumerateCameras()
-        if (!bootstrapRepository.isBootstrapInstalled) installationViewModel.fetchBootstrapReleases()
         showArchitectureSelectionDialog()
     }
 
@@ -210,20 +170,6 @@ class InitialActivity: AppCompatActivity() {
         dialog.show()
     }
 
-    private fun updateBootstrapSpinnerItems(releases: List<BootstrapItem>) {
-        spinnerArrayAdapter.clear()
-        spinnerArrayAdapter.addAll(releases)
-        spinnerArrayAdapter.notifyDataSetChanged()
-
-        if (releases.isEmpty()) return
-
-        val recommendedItem = releases.indexOfFirst { it.recommended }
-        val selectedIndex = if (recommendedItem >= 0) recommendedItem else 0
-        val selectedRelease = releases[selectedIndex]
-        installationViewModel.selectBootstrapRelease(selectedRelease)
-        bootstrapVersionSpinner.setSelection(selectedIndex)
-    }
-
     private fun requestRootAccess() {
         rootStatusText.text = getString(R.string.setup_root_checking)
         retryRootButton.visibility = View.GONE
@@ -264,8 +210,7 @@ class InitialActivity: AppCompatActivity() {
 
     private fun updateActionsForRootState() {
         // Root is optional; the bootstrap archive supplies PRoot/minitar needed by Debian.
-        installButton.isEnabled = rootAuthorized &&
-            (bootstrapRepository.isBootstrapInstalled || bootstrapReleaseAvailable)
+        installButton.isEnabled = rootAuthorized
         skipSetupButton.isEnabled = rootAuthorized
     }
 
@@ -295,23 +240,6 @@ class InitialActivity: AppCompatActivity() {
         }
     }
 
-    private fun continueSetupAfterStoragePermission() {
-        // Bootstrap and Debian data live in the app-private files directory.
-        // Do not block setup on obsolete external-storage permissions on modern Android.
-        launchBootstrapInstaller()
-    }
-
-    private fun launchBootstrapInstaller() {
-        if (!bootstrapRepository.isBootstrapInstallItemSelected) {
-            Toast.makeText(this, getString(R.string.bootstrap_not_selected), Toast.LENGTH_LONG).show()
-            return
-        }
-        prefs.pendingKlipperSetup = true
-        startOctoService()
-        startActivity(Intent(this, InstallationActivity::class.java))
-        finish()
-    }
-
     private fun launchKlipperSetup() {
         prefs.pendingKlipperSetup = false
         prefs.setupAssistantSkipped = false
@@ -329,61 +257,4 @@ class InitialActivity: AppCompatActivity() {
         return cm.activeNetworkInfo != null && cm.activeNetworkInfo.isConnected
     }
 
-    private fun startOctoService() {
-        startService(Intent(this, OctoPrintService::class.java))
-    }
-
-    private fun showLegacyBootstrapDialog() {
-        val alertDialog: AlertDialog? = this.let {
-            val builder = AlertDialog.Builder(it)
-            builder.apply {
-                setTitle(R.string.legacy_bootstrap)
-                setMessage(R.string.legacy_bootstrap_msg)
-                setNeutralButton(android.R.string.cancel) { dialog, id ->
-                }
-
-                setPositiveButton(R.string.clear_and_install) { dialog, id ->
-                    // Remove all bootstrap-related data
-                    bootstrapRepository.runCommand("cd .. && rm -rf *", prooted = false).getOutputAsString()
-                    installationViewModel.fetchBootstrapReleases()
-                }
-
-            }
-
-            builder.create()
-        }
-
-        alertDialog?.show()
-    }
-
-    private fun showPre1LegacyBootstrapDialog() {
-        val alertDialog: AlertDialog? = this.let {
-            val builder = AlertDialog.Builder(it)
-            builder.apply {
-                setTitle(R.string.legacy_bootstrap)
-                setMessage(R.string.legacy_bootstrap_msg)
-                setNeutralButton(android.R.string.cancel) { dialog, id ->
-                }
-
-                setPositiveButton(R.string.clear_and_install) { dialog, id ->
-                    val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-                    // clearing app data
-                    if (Build.VERSION_CODES.KITKAT <= Build.VERSION.SDK_INT) {
-                        activityManager.clearApplicationUserData()
-                    } else {
-                        val packageName = applicationContext.packageName
-                        val runtime = Runtime.getRuntime();
-                        runtime.exec("pm clear $packageName");
-                    }
-
-                    installationViewModel.fetchBootstrapReleases()
-                }
-
-            }
-
-            builder.create()
-        }
-
-        alertDialog?.show()
-    }
 }
