@@ -31,9 +31,10 @@ jobs:
         working-directory: app
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon assembleDebug
+          ./gradlew --no-daemon assembleDebug --stacktrace
 
       - name: Upload debug APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: miracle-klipper-debug
