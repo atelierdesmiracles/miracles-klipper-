@@ -682,7 +682,7 @@ class LinuxEnvironmentRepositoryImpl(
             .forEach { args.addAll(listOf("-b", it)) }
         val serialPipe = File(context.filesDir, "serialpipe")
         if (serialPipe.exists()) args.addAll(listOf("-b", "${serialPipe.absolutePath}:/dev/ttyOcto4a"))
-        val fakeProcStat = File(context.filesDir, "bootstrap/fake_proc_stat")
+        val fakeProcStat = ProotRuntime.fakeProcStat(context)
         if (fakeProcStat.isFile) args.addAll(listOf("-b", "${fakeProcStat.absolutePath}:/proc/stat"))
         args.addAll(listOf("-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
         // Do not require /usr/bin/env to be executable in the freshly unpacked rootfs.

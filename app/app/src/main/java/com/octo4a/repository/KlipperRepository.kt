@@ -407,11 +407,12 @@ class KlipperRepositoryImpl(
     }
 
     private fun createProotProcess(command: List<String>, workingDirectory: String): ProcessBuilder {
-        val bootstrapBin = File(context.filesDir, "bootstrap/bin")
-        val proot = File(bootstrapBin, "proot")
-        if (!File(rootfsDirectory, "usr/bin/env").isFile || !proot.isFile) {
-            throw IOException("The Debian 13 environment or Octo4a PRoot tools are unavailable")
+        val bootstrapBin = ProotRuntime.nativeDirectory(context)
+        val proot = ProotRuntime.proot(context)
+        if (!File(rootfsDirectory, "usr/bin/env").isFile) {
+            throw IOException("The Debian 13 environment is unavailable")
         }
+        ProotRuntime.requireAvailable(context)
         val temporaryDirectory = File(baseDirectory, "tmp")
         val linkDirectory = File(rootfsDirectory, ".l2s")
         ensureDirectoryExists(temporaryDirectory)
@@ -424,7 +425,7 @@ class KlipperRepositoryImpl(
             .forEach { args.addAll(listOf("-b", it)) }
         val serialPipe = File(context.filesDir, "serialpipe")
         if (serialPipe.exists()) args.addAll(listOf("-b", "${serialPipe.absolutePath}:/dev/ttyOcto4a"))
-        val fakeProcStat = File(context.filesDir, "bootstrap/fake_proc_stat")
+        val fakeProcStat = ProotRuntime.fakeProcStat(context)
         if (fakeProcStat.isFile) args.addAll(listOf("-b", "${fakeProcStat.absolutePath}:/proc/stat"))
         args.addAll(listOf("-L", "--link2symlink", "-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
         args.addAll(listOf("-w", workingDirectory, "/usr/bin/env"))
@@ -449,6 +450,7 @@ class KlipperRepositoryImpl(
         builder.environment()["PWD"] = bootstrapBin.absolutePath
         builder.environment().remove("LD_PRELOAD")
         builder.environment().remove("LD_LIBRARY_PATH")
+        ProotRuntime.applyLoader(builder, context)
         return builder
     }
 

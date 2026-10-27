@@ -31,9 +31,18 @@ class Octo4aApplication : MultiDexApplication() {
 
     fun startBugsnag() {
         if (bugsnagStarted) return
+        if (!hasBugsnagKey()) return
 
         Bugsnag.start(this)
         bugsnagStarted = true
+    }
+
+    private fun hasBugsnagKey(): Boolean = try {
+        val info = packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_META_DATA)
+        val key = info.metaData?.getString("com.bugsnag.android.API_KEY")
+        !key.isNullOrBlank() && key.any { it != '0' }
+    } catch (_: Exception) {
+        false
     }
 
     fun initializeSSLContext() {

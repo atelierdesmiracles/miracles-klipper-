@@ -1,9 +1,7 @@
 name: Miracle Klipper Android build
 
+# Manual only: "Android CI" (build-app.yml) already builds every push.
 on:
-  push:
-    branches:
-      - miracle-klipper-next
   workflow_dispatch:
 
 permissions:
@@ -23,6 +21,9 @@ jobs:
           java-version: "11"
           cache: gradle
           cache-dependency-path: app/**/*.gradle*
+
+      - name: Fetch and verify Android PRoot libraries
+        run: bash scripts/fetch-proot.sh
 
       - name: Build debug APK
         working-directory: app

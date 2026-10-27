@@ -16,6 +16,11 @@ android {
         versionName = "0.2.0-alpha.1"
         versionCode = 2002001
         multiDexEnabled = true
+        // Own Bugsnag project key, provided at build time. Without it, crash reporting stays off
+        // (the placeholder below is intentionally invalid) instead of reporting to upstream Octo4a.
+        manifestPlaceholders["bugsnagApiKey"] =
+            System.getenv("MIRACLE_BUGSNAG_API_KEY")?.takeIf { it.isNotBlank() }
+                ?: "00000000000000000000000000000000"
 
         ndk {
             abiFilters.add("x86")

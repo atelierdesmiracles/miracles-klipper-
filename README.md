@@ -24,6 +24,16 @@ The Android application ID is `fr.atelierdesmiracles.miracleklipper`. The existi
 
 ## Build
 
+PRoot ships inside the APK as `libproot.so` / `libproot-loader.so` (jniLibs, gitignored). Fetch the
+verified binaries once before building, otherwise installation fails on device:
+
+```bash
+bash scripts/fetch-proot.sh
+```
+
+Optional crash reporting uses your own Bugsnag project: export `MIRACLE_BUGSNAG_API_KEY` before
+building. Without it, crash reporting stays disabled.
+
 From the repository root:
 
 ```bash

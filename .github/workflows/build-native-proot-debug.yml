@@ -8,6 +8,7 @@ on:
       - "app/app/src/main/java/com/octo4a/repository/LinuxEnvironmentRepository.kt"
       - "app/app/build.gradle.kts"
       - ".github/workflows/build-native-proot-debug.yml"
+      - "scripts/fetch-proot.sh"
   workflow_dispatch:
 
 permissions:
@@ -27,24 +28,8 @@ jobs:
           distribution: temurin
           java-version: "11"
 
-      - name: Download and package PRoot for supported Android ABIs
-        run: |
-          set -euo pipefail
-          base="https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13"
-          for item in "arm64:arm64-v8a" "x86_64:x86_64"; do
-            arch="${item%%:*}"
-            abi="${item#*:}"
-            tmp="/tmp/proot-${arch}"
-            mkdir -p "${tmp}" "app/app/src/main/jniLibs/${abi}"
-            curl --fail --location --retry 3 "${base}/miracle-klipper-debian13-${arch}.zip" -o "/tmp/proot-${arch}.zip"
-            unzip -q "/tmp/proot-${arch}.zip" -d "${tmp}"
-            test -s "${tmp}/bin/proot"
-            test -s "${tmp}/libexec/proot/loader"
-            cp "${tmp}/bin/proot" "app/app/src/main/jniLibs/${abi}/libproot.so"
-            cp "${tmp}/libexec/proot/loader" "app/app/src/main/jniLibs/${abi}/libproot-loader.so"
-            chmod 755 "app/app/src/main/jniLibs/${abi}/libproot.so" "app/app/src/main/jniLibs/${abi}/libproot-loader.so"
-            file "app/app/src/main/jniLibs/${abi}/libproot.so" "app/app/src/main/jniLibs/${abi}/libproot-loader.so"
-          done
+      - name: Fetch and verify Android PRoot libraries
+        run: bash scripts/fetch-proot.sh
 
       - name: Build debug APK
         working-directory: app

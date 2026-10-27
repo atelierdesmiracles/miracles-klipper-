@@ -12,6 +12,24 @@ if [ -f /var/lib/miracle/preinstalled-environment ]; then
   exit 0
 fi
 
+# Pinned sources: keep in sync with assets/klipper-environment.json, moonraker-environment.json
+# and klipper-web-interfaces.json. Override through the environment only for development.
+KLIPPER_REV="${KLIPPER_REV:-ee2c6fb6b00b2b5d097ef70d0868df7d74943b51}"
+MOONRAKER_REV="${MOONRAKER_REV:-b559b9a81161f958a43c2f527b6ad96f73310d5d}"
+MAINSAIL_VERSION="${MAINSAIL_VERSION:-v2.19.0}"
+MAINSAIL_SHA256="${MAINSAIL_SHA256:-c4d9d96f89851c6ae0709c2f20725447f3fe8c57cf193869b0083441bd93378a}"
+
+fetch_pinned() {
+  # fetch_pinned <repo-url> <dir> <full-commit-sha>
+  local url="$1" dir="$2" rev="$3"
+  mkdir -p "$dir"
+  git -C "$dir" init -q
+  git -C "$dir" remote add origin "$url" 2>/dev/null || git -C "$dir" remote set-url origin "$url"
+  git -C "$dir" fetch -q --depth 1 origin "$rev"
+  git -C "$dir" checkout -q --detach FETCH_HEAD
+  [ "$(git -C "$dir" rev-parse HEAD)" = "$rev" ] || { echo "[ERROR] $dir is not at pinned revision $rev"; exit 1; }
+}
+
 LOG=/var/log/miracle-klipper-setup.log
 mkdir -p /var/log /opt/miracle-klipper /var/lib/miracle/printer_data/config /var/lib/miracle/printer_data/logs /var/lib/miracle/printer_data/gcodes /var/lib/miracle/printer_data/comms
 exec > >(tee -a "$LOG") 2>&1
@@ -21,15 +39,15 @@ echo "[Miracle Klipper] Installing runtime dependencies..."
 apt-get update
 apt-get install -y --no-install-recommends \
   bash ca-certificates curl git nginx unzip python3 python3-venv python3-dev \
-  build-essential libffi-dev libjpeg62-turbo libopenjp2-7 libusb-1.0-0 \
+  build-essential libffi-dev libjpeg62-turbo libopenjp2-7 libusb-1.0-0 libsodium-dev \
   liblmdb0 libopenblas0 libjpeg-dev zlib1g-dev libssl-dev
 
 cd /opt/miracle-klipper
 if [ ! -d klipper/.git ]; then
-  git clone --depth 1 https://github.com/Klipper3d/klipper.git klipper
+  fetch_pinned https://github.com/Klipper3d/klipper.git klipper "$KLIPPER_REV"
 fi
 if [ ! -d moonraker/.git ]; then
-  git clone --depth 1 https://github.com/Arksine/moonraker.git moonraker
+  fetch_pinned https://github.com/Arksine/moonraker.git moonraker "$MOONRAKER_REV"
 fi
 
 echo "[Miracle Klipper] Creating Python environments..."
@@ -44,8 +62,9 @@ python3 -m venv --system-site-packages /opt/miracle-klipper/venvs/moonraker
 echo "[Miracle Klipper] Installing Mainsail..."
 mkdir -p /var/www/mainsail
 curl --fail --location --retry 3 --connect-timeout 20 \
-  https://github.com/mainsail-crew/mainsail/releases/latest/download/mainsail.zip \
+  "https://github.com/mainsail-crew/mainsail/releases/download/${MAINSAIL_VERSION}/mainsail.zip" \
   -o /tmp/mainsail.zip
+echo "${MAINSAIL_SHA256}  /tmp/mainsail.zip" | sha256sum -c -
 rm -rf /tmp/mainsail-release
 mkdir -p /tmp/mainsail-release
 unzip -q -o /tmp/mainsail.zip -d /tmp/mainsail-release
@@ -69,7 +88,6 @@ trusted_clients:
   10.0.0.0/8
   172.16.0.0/12
   192.168.0.0/16
-  100.64.0.0/10
 cors_domains:
   *.local
   *.lan

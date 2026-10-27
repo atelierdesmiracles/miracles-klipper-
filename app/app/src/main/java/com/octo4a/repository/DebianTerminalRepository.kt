@@ -29,8 +29,8 @@ class DebianTerminalRepositoryImpl(
     private val sharedDirectory = File(baseDirectory, "shared")
     private val kiauhDirectory = File(sharedDirectory, "kiauh")
     private val kiauhSudoShim = File(sharedDirectory, "kiauh-support/bin/sudo")
-    private val bootstrapBin = File(baseDirectory, "bootstrap/bin")
-    private val proot = File(bootstrapBin, "proot")
+    private val bootstrapBin = ProotRuntime.nativeDirectory(context)
+    private val proot = ProotRuntime.proot(context)
     private val ttyd = File(rootfsDirectory, "usr/bin/ttyd")
     private val temporaryDirectory = File(baseDirectory, "tmp")
     private val linkDirectory = File(rootfsDirectory, ".l2s")
@@ -61,6 +61,7 @@ class DebianTerminalRepositoryImpl(
         }
 
         requireFile(proot, "Le moteur PRoot Android est absent. Réinstalle le composant PRoot de Miracle Klipper.")
+        requireFile(ProotRuntime.loader(context), "Le chargeur PRoot Android est absent. Réinstalle le composant PRoot de Miracle Klipper.")
         requireFile(File(rootfsDirectory, "usr/bin/env"), "Debian 13 est incomplète. Réinstalle l'environnement Debian.")
         requireFile(ttyd, "Le terminal web ttyd manque dans Debian 13. Vérifie l’installation du paquet ttyd.")
 
@@ -140,6 +141,7 @@ class DebianTerminalRepositoryImpl(
         builder.environment()["PWD"] = bootstrapBin.absolutePath
         builder.environment().remove("LD_PRELOAD")
         builder.environment().remove("LD_LIBRARY_PATH")
+        ProotRuntime.applyLoader(builder, context)
 
         logger.log(this, LogType.EXTENSION) { "Starting the in-app Debian terminal on 127.0.0.1:$port (interface $iface)" }
         synchronized(recentOutput) { recentOutput.clear() }

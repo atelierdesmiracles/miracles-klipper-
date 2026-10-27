@@ -41,7 +41,7 @@ class ExtensionsFragment : Fragment() {
 
         extensionsCard.setOnClickListener {
             val i = Intent(Intent.ACTION_VIEW)
-            i.data = Uri.parse("https://github.com/feelfreelinux/octo4a/wiki/Extensions-system")
+            i.data = Uri.parse("https://github.com/atelierdesmiracles/miracles-klipper-")
             startActivity(i)
         }
     }
