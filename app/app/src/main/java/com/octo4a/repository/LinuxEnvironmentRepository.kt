@@ -605,7 +605,7 @@ class LinuxEnvironmentRepositoryImpl(
         val expectedArch = if (environmentArchitecture == LinuxArchitecture.ARM64) "arm64" else "x86_64"
         if (!setOf(
                 "schema=1",
-                "arch=\${expectedArch}",
+                "arch=${expectedArch}",
                 "debian=13",
                 "stack=klipper-moonraker-mainsail"
             ).all { it in markerLines }) {
@@ -624,7 +624,7 @@ class LinuxEnvironmentRepositoryImpl(
         val missing = requiredFiles.filterNot { File(rootfs, it).isFile }
         if (missing.isNotEmpty()) {
             throw IOException(
-                "Preinstalled Miracle Klipper environment is incomplete; missing: \${missing.joinToString()}"
+                "Preinstalled Miracle Klipper environment is incomplete; missing: ${missing.joinToString()}"
             )
         }
     }
