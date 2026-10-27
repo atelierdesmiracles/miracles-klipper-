@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "minimumFreeStorageBytes": 4294967296,
+  "minimumFreeStorageBytes": 8589934592,
   "distribution": {
     "name": "Debian",
     "version": "13",
@@ -11,8 +11,8 @@
   "rootfs": {
     "source": "termux/proot-distro",
     "sourceRelease": "v4.26.0",
-    "url": "https://github.com/termux/proot-distro/releases/download/v4.26.0/debian-trixie-x86_64-pd-v4.26.0.tar.xz",
-    "sha256": "e2edc15363395936cf0cba8c440a108458dba58fb496d3d962909d7a8d9777ae",
+    "url": "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13/debian-trixie-x86_64-preinstalled.tar.xz",
+    "sha256": "d8ce7f697083c3c4712f41c2a2b27bbd302f17cf05c81c450057de6348ea4012",
     "archiveFormat": "tar.xz",
     "stripComponents": 1
   },
