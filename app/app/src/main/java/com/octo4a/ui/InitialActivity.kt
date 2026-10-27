@@ -57,7 +57,7 @@ class InitialActivity: AppCompatActivity() {
     private val moonraker: MoonrakerRepository by inject()
     private val klipperScreen: KlipperScreenRepository by inject()
     private val webInterface: KlipperWebInterfaceRepository by inject()
-    private var rootAuthorized = false
+    private var startupCheckComplete = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,7 +74,7 @@ class InitialActivity: AppCompatActivity() {
         installButton.isEnabled = false
         skipSetupButton.isEnabled = false
         installButton.setOnClickListener {
-            if (!rootAuthorized) return@setOnClickListener
+            if (!startupCheckComplete) return@setOnClickListener
             persistWebInterfaceChoice()
             prefs.setupAssistantSkipped = false
             if (!isNetworkConnected()) {
@@ -95,7 +95,11 @@ class InitialActivity: AppCompatActivity() {
         retryRootButton.setOnClickListener { requestRootAccess() }
 
         cameraEnumerationRepository.enumerateCameras()
-        showArchitectureSelectionDialog()
+        // Check root status immediately on launch, before asking the user to choose an architecture.
+        // Root is optional: the app uses its own PRoot runtime either way.
+        requestRootAccess {
+            showArchitectureSelectionDialog()
+        }
     }
 
     private fun showArchitectureSelectionDialog() {
@@ -133,7 +137,8 @@ class InitialActivity: AppCompatActivity() {
                         .show()
                 } else {
                     prefs.selectedLinuxArchitecture = choice
-                    requestRootAccess()
+                    updateActionsForStartupCheck()
+                    routeExistingInstallation()
                 }
             }
             .create()
@@ -141,7 +146,7 @@ class InitialActivity: AppCompatActivity() {
         dialog.show()
     }
 
-    private fun requestRootAccess() {
+    private fun requestRootAccess(onChecked: (() -> Unit)? = null) {
         rootStatusText.text = getString(R.string.setup_root_checking)
         retryRootButton.visibility = View.GONE
         installButton.isEnabled = false
@@ -150,15 +155,19 @@ class InitialActivity: AppCompatActivity() {
             val result = withContext(Dispatchers.IO) { checkSuperuserAccess() }
             // Miracle Klipper runs its Linux environment with PRoot inside the app sandbox.
             // Android root access is optional and must never block installation.
-            rootAuthorized = true
+            startupCheckComplete = true
             rootStatusText.text = if (result.first) {
                 getString(R.string.setup_root_granted)
             } else {
                 getString(R.string.setup_non_root_supported)
             }
             retryRootButton.visibility = View.GONE
-            updateActionsForRootState()
-            routeExistingInstallation()
+            updateActionsForStartupCheck()
+            if (onChecked != null) {
+                onChecked()
+            } else {
+                routeExistingInstallation()
+            }
         }
     }
 
@@ -179,10 +188,10 @@ class InitialActivity: AppCompatActivity() {
         }
     }
 
-    private fun updateActionsForRootState() {
-        // Root is optional; LinuxEnvironmentRepository downloads and verifies Miracle Klipper's own PRoot bundle.
-        installButton.isEnabled = rootAuthorized
-        skipSetupButton.isEnabled = rootAuthorized
+    private fun updateActionsForStartupCheck() {
+        // Enable setup after the root-status check completes; root itself is not required.
+        installButton.isEnabled = startupCheckComplete
+        skipSetupButton.isEnabled = startupCheckComplete
     }
 
     private fun routeExistingInstallation() {
