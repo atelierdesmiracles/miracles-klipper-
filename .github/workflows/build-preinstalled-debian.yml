@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-rootfs:
@@ -96,7 +96,7 @@ jobs:
       - name: Package and checksum environment
         run: |
           set -euo pipefail
-          tar --numeric-owner --xattrs --acls -cJf miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz -C work/rootfs .
+          tar --numeric-owner --xattrs --acls -cJf miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz -C work rootfs
           sha256sum miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz > miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz.sha256
           du -h miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz
           cat miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz.sha256
@@ -109,3 +109,13 @@ jobs:
             miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz.sha256
           if-no-files-found: error
           compression-level: 0
+
+      - name: Publish preinstalled environment to the Debian release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          asset="debian-trixie-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-preinstalled.tar.xz"
+          cp "miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz" "$asset"
+          sha256sum "$asset" > "$asset.sha256"
+          gh release upload miracle-klipper-debian13 "$asset" "$asset.sha256" --clobber
