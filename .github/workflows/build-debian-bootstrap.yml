@@ -27,12 +27,14 @@ jobs:
         include:
           - arch: arm64
             abi: aarch64
+            elf_machine: AArch64
             rootfs_url: https://github.com/termux/proot-distro/releases/download/v4.26.0/debian-trixie-aarch64-pd-v4.26.0.tar.xz
             rootfs_sha256: cda75346f2c9e09e8a802665745b5a7e2bd6d8584dbf1c86c8c57ef54c4e2d3c
             proot_url: https://github.com/ahmed-alnassif/proot/releases/download/v26.10.08-a179d3e/proot-aarch64.zip
             proot_sha256: d621d71fb68bf07accbada37ffc4208cf4a963eed70916ee68f848cbd9555cc3
           - arch: x86_64
             abi: x86_64
+            elf_machine: X86-64
             rootfs_url: https://github.com/termux/proot-distro/releases/download/v4.26.0/debian-trixie-x86_64-pd-v4.26.0.tar.xz
             rootfs_sha256: e2edc15363395936cf0cba8c440a108458dba58fb496d3d962909d7a8d9777ae
             proot_url: https://github.com/ahmed-alnassif/proot/releases/download/v26.10.08-a179d3e/proot-x86_64.zip
@@ -56,6 +58,7 @@ jobs:
         env:
           PROOT_URL: ${{ matrix.proot_url }}
           PROOT_SHA256: ${{ matrix.proot_sha256 }}
+          EXPECTED_ELF_MACHINE: ${{ matrix.elf_machine }}
         run: |
           set -euo pipefail
           curl --fail --location --retry 3 --connect-timeout 20 "$PROOT_URL" -o build/proot/proot.zip
@@ -64,6 +67,15 @@ jobs:
           unzip -q build/proot/proot.zip -d build/proot/extracted
           echo "PRoot archive contents, including symlinks:"
           ls -laR build/proot/extracted
+          # Fail the release build if an incompatible GNU/Linux ELF slips into the Android bundle.
+          # Android 64-bit executables must target the selected CPU and must not request glibc's loader.
+          actual_machine="$(readelf -h build/proot/extracted/proot | sed -n 's/^[[:space:]]*Machine:[[:space:]]*//p')"
+          test "$actual_machine" = "$EXPECTED_ELF_MACHINE" || { echo "Wrong PRoot ELF machine: $actual_machine (expected $EXPECTED_ELF_MACHINE)"; exit 1; }
+          interpreter="$(readelf -l build/proot/extracted/proot | sed -n 's/.*Requesting program interpreter: \\([^]]*\\)].*/\\1/p')"
+          if [ -n "$interpreter" ] && [ "$interpreter" != "/system/bin/linker64" ]; then
+            echo "Incompatible PRoot interpreter: $interpreter (expected Android /system/bin/linker64 or a static binary)"
+            exit 1
+          fi
           # Upstream ZIPs can contain symlinks; dereference them because Java's
           # ZipInputStream on Android cannot recreate filesystem symlinks.
           test -f build/proot/extracted/proot
