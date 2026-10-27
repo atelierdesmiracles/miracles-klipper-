@@ -621,7 +621,14 @@ class LinuxEnvironmentRepositoryImpl(
             "opt/miracle-klipper/moonraker/moonraker.py",
             "var/www/mainsail/index.html"
         )
-        val missing = requiredFiles.filterNot { File(rootfs, it).isFile }
+        // Python venv launchers in Debian are often absolute symlinks (for example
+        // bin/python3 -> /usr/bin/python3). File.isFile follows those links on the
+        // Android host, where /usr/bin/python3 does not exist. Check the archive
+        // entries themselves here; runInRootfs validates that the links resolve in Debian.
+        val missing = requiredFiles.filterNot {
+            val path = File(rootfs, it).toPath()
+            Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+        }
         if (missing.isNotEmpty()) {
             throw IOException(
                 "Preinstalled Miracle Klipper environment is incomplete; missing: ${missing.joinToString()}"
