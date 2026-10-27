@@ -72,6 +72,8 @@ jobs:
           sudo mount --bind /dev work/rootfs/dev
           sudo mount --bind /proc work/rootfs/proc
           sudo mount --bind /sys work/rootfs/sys
+          sudo chmod 1777 work/rootfs/tmp
+          sudo cp /etc/resolv.conf work/rootfs/etc/resolv.conf
           sudo chroot work/rootfs /usr/bin/apt-get update
           sudo chroot work/rootfs /usr/bin/apt-get install -y --no-install-recommends \
             bash ca-certificates curl wget git nginx unzip python3 python3-venv python3-dev \
