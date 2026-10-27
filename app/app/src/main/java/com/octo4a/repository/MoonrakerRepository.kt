@@ -401,7 +401,9 @@ class MoonrakerRepositoryImpl(
                     " fe80::/10\n" +
                     "cors_domains:\n" +
                     " http://127.0.0.1:8080\n" +
-                    " http://localhost:8080\n\n" +
+                    " http://localhost:8080\n" +
+                    " http://*.local:8080\n" +
+                    " http://*.lan:8080\n\n" +
                     "[machine]\n" +
                     "provider: none\n" +
                     "shutdown_action: halt\n\n" +
@@ -432,6 +434,8 @@ class MoonrakerRepositoryImpl(
         val migrated = current
             .replace("use_xheaders: False", "use_xheaders: True")
             .replace(oldTrustedClients, newTrustedClients)
+            .replace("http://127.0.0.1:5000", "http://127.0.0.1:8080")
+            .replace("http://localhost:5000", "http://localhost:8080")
         if (MoonrakerConfigurationValidator.isSafeLocalConfiguration(migrated)) {
             configFile.writeText(migrated)
         }
@@ -939,7 +943,9 @@ internal object MoonrakerConfigurationValidator {
                 ) &&
             auth.listValues("cors_domains") == setOf(
                 "http://127.0.0.1:8080",
-                "http://localhost:8080"
+                "http://localhost:8080",
+                "http://*.local:8080",
+                "http://*.lan:8080"
             )
     }
 
