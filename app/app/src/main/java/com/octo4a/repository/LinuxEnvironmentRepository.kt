@@ -324,7 +324,7 @@ class LinuxEnvironmentRepositoryImpl(
         }
         val manifest = File(extracted, "bootstrap-manifest.txt")
         val manifestText = if (manifest.isFile) manifest.readText() else ""
-        if (!manifestText.contains("version=13-trixie") || !manifestText.contains("architecture=$arch") || !manifestText.contains("rootfs_sha256=${rootfs.sha256}")) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap metadata does not match this device or Debian manifest") }
+        if (!manifestText.contains("version=13-trixie") || !manifestText.contains("architecture=$arch") || !manifestText.contains("rootfs_sha256=")) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap metadata does not match this device") }
         val bundledProot = File(extracted, "bin/proot")
         val bundledLoader = File(extracted, "libexec/proot")
         val extractedRootfs = File(extracted, "rootfs/debian-trixie.tar.xz")
@@ -397,8 +397,22 @@ class LinuxEnvironmentRepositoryImpl(
         state.value = LinuxEnvironmentProgress(LinuxEnvironmentStage.Downloading, 0, "Preparing verified Debian 13 rootfs")
         val bundledRootfs = File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz")
         if (bundledRootfs.isFile) {
-            copyAndVerifyRootfs(bundledRootfs, destination, rootfs.sha256)
-            return
+            val bundledDigest = MessageDigest.getInstance("SHA-256")
+            bundledRootfs.inputStream().use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    bundledDigest.update(buffer, 0, count)
+                }
+            }
+            val bundledHash = bundledDigest.digest().joinToString("") { "%02x".format(it) }
+            // Older bootstrap bundles contain only a minimal Debian rootfs. If its hash
+            // does not match the manifest, fetch the newer preinstalled environment below.
+            if (bundledHash.equals(rootfs.sha256, ignoreCase = true)) {
+                copyAndVerifyRootfs(bundledRootfs, destination, rootfs.sha256)
+                return
+            }
         }
         val url = URL(rootfs.url)
         if (url.protocol != "https") throw IOException("Debian downloads must use HTTPS")
@@ -576,6 +590,29 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun installPackages(rootfs: File, manifest: LinuxEnvironmentManifest) {
+        val preinstalledMarker = File(rootfs, "var/lib/miracle/preinstalled-environment")
+        if (preinstalledMarker.isFile) {
+            val markerText = preinstalledMarker.readText()
+            val expectedArch = if (environmentArchitecture == LinuxArchitecture.ARM64) "arm64" else "x86_64"
+            if (!markerText.contains("schema=1") ||
+                !markerText.contains("arch=$expectedArch") ||
+                !markerText.contains("debian=13") ||
+                !markerText.contains("stack=klipper-moonraker-mainsail")) {
+                throw IOException("Preinstalled Debian environment metadata does not match this device")
+            }
+            // The release rootfs already contains system packages, Python environments,
+            // Klipper, Moonraker and Mainsail. Validate it rather than rerunning apt/pip.
+            runInRootfs(rootfs, listOf("/usr/bin/apt-get", "check"))
+            runInRootfs(rootfs, listOf("/opt/miracle-klipper/venvs/klipper/bin/python", "--version"))
+            runInRootfs(rootfs, listOf("/opt/miracle-klipper/venvs/moonraker/bin/python", "--version"))
+            if (!File(rootfs, "var/www/mainsail/index.html").isFile ||
+                !File(rootfs, "opt/miracle-klipper/klipper/klippy/klippy.py").isFile ||
+                !File(rootfs, "opt/miracle-klipper/moonraker/moonraker.py").isFile) {
+                throw IOException("Preinstalled Miracle Klipper stack is incomplete")
+            }
+            return
+        }
+
         val policy = File(rootfs, "usr/sbin/policy-rc.d")
         val hadPolicy = policy.exists()
         val oldPolicy = if (hadPolicy) policy.readBytes() else null
