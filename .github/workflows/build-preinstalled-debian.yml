@@ -5,9 +5,7 @@ on:
     branches:
       - miracle-klipper-next
     paths:
-      - ".github/workflows/build-preinstalled-debian.yml"
       - "app/app/src/main/assets/linux/install-miracle-klipper.sh"
-      - "app/app/src/main/assets/linux-environment*.json"
   workflow_dispatch:
 
 permissions:
@@ -119,3 +117,57 @@ jobs:
           cp "miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz" "$asset"
           sha256sum "$asset" > "$asset.sha256"
           gh release upload miracle-klipper-debian13 "$asset" "$asset.sha256" --clobber
+
+  update-manifests:
+    name: Pin preinstalled environment checksums
+    needs: build-rootfs
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: miracle-klipper-next
+          token: ${{ github.token }}
+      - name: Download architecture artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: miracle-klipper-debian13-*-preinstalled
+          merge-multiple: true
+          path: dist
+      - name: Update architecture manifests
+        run: |
+          set -euo pipefail
+          cp dist/miracle-klipper-debian13-arm64-preinstalled.tar.xz dist/debian-trixie-aarch64-preinstalled.tar.xz
+          cp dist/miracle-klipper-debian13-x86_64-preinstalled.tar.xz dist/debian-trixie-x86_64-preinstalled.tar.xz
+          arm_hash="$(sha256sum dist/debian-trixie-aarch64-preinstalled.tar.xz | cut -d' ' -f1)"
+          x86_hash="$(sha256sum dist/debian-trixie-x86_64-preinstalled.tar.xz | cut -d' ' -f1)"
+          python3 - "$arm_hash" "$x86_hash" <<'PY'
+          import json, pathlib, sys
+          arm_hash, x86_hash = sys.argv[1:3]
+          base = "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13/"
+          files = [
+              ("app/app/src/main/assets/linux-environment.json", "debian-trixie-aarch64-preinstalled.tar.xz", arm_hash),
+              ("app/app/src/main/assets/linux-environment-x86_64.json", "debian-trixie-x86_64-preinstalled.tar.xz", x86_hash),
+          ]
+          for name, asset, digest in files:
+              path = pathlib.Path(name)
+              data = json.loads(path.read_text())
+              data["minimumFreeStorageBytes"] = 8589934592
+              data["rootfs"]["url"] = base + asset
+              data["rootfs"]["sha256"] = digest
+              path.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+      - name: Commit pinned manifests
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/app/src/main/assets/linux-environment.json app/app/src/main/assets/linux-environment-x86_64.json
+          if git diff --cached --quiet; then
+            echo "Manifests already match the built environments."
+            exit 0
+          fi
+          git commit -m "Pin preinstalled Debian environment checksums"
+          git push origin HEAD:miracle-klipper-next
