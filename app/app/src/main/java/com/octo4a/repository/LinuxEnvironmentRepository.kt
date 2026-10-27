@@ -157,7 +157,7 @@ class LinuxEnvironmentRepositoryImpl(
                 File(baseDirectory, "bootstrap/bin/proot").canExecute() &&
                 File(baseDirectory, "bootstrap/libexec/proot").listFiles()?.isNotEmpty() == true &&
                 File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz").isFile &&
-                File(baseDirectory, "bootstrap/android-proot-version").readTextOrNull() == "android-bionic-proot-v1"
+                File(baseDirectory, "bootstrap/android-proot-version").let { it.isFile && it.readText().trim() == "android-bionic-proot-v1" }
         }
 
     override suspend fun install() = withContext(Dispatchers.IO) {
@@ -268,7 +268,7 @@ class LinuxEnvironmentRepositoryImpl(
         val prootVersion = File(bootstrapDirectory, "android-proot-version")
         if (proot.isFile && proot.canExecute() && loader.isDirectory &&
             !loader.listFiles().isNullOrEmpty() && bundledRootfs.isFile &&
-            prootVersion.readTextOrNull() == "android-bionic-proot-v1") return
+            prootVersion.isFile && prootVersion.readText().trim() == "android-bionic-proot-v1") return
         val arch = when (environmentArchitecture) { LinuxArchitecture.ARM64 -> "arm64"; LinuxArchitecture.X86_64 -> "x86_64"; else -> throw IOException("Unsupported Miracle Klipper bootstrap architecture: $environmentArchitecture") }
         val baseUrl = "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13"
         val bundleName = "miracle-klipper-debian13-$arch.zip"
