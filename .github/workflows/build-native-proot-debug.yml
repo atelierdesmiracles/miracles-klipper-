@@ -15,16 +15,8 @@ permissions:
 
 jobs:
   build-debug-apk:
-    name: Build debug APK with packaged PRoot (${{ matrix.arch }})
+    name: Build universal debug APK with Android-native PRoot
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            abi: arm64-v8a
-          - arch: x86_64
-            abi: x86_64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,22 +27,24 @@ jobs:
           distribution: temurin
           java-version: "11"
 
-      - name: Download and package PRoot in Android native library directory
-        env:
-          ARCH: ${{ matrix.arch }}
-          ABI: ${{ matrix.abi }}
+      - name: Download and package PRoot for supported Android ABIs
         run: |
           set -euo pipefail
-          url="https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13/miracle-klipper-debian13-${ARCH}.zip"
-          mkdir -p "/tmp/proot-${ARCH}" "app/app/src/main/jniLibs/${ABI}"
-          curl --fail --location --retry 3 "${url}" -o "/tmp/proot-${ARCH}.zip"
-          unzip -q "/tmp/proot-${ARCH}.zip" -d "/tmp/proot-${ARCH}"
-          test -s "/tmp/proot-${ARCH}/bin/proot"
-          test -s "/tmp/proot-${ARCH}/libexec/proot/loader"
-          cp "/tmp/proot-${ARCH}/bin/proot" "app/app/src/main/jniLibs/${ABI}/libproot.so"
-          cp "/tmp/proot-${ARCH}/libexec/proot/loader" "app/app/src/main/jniLibs/${ABI}/libproot-loader.so"
-          chmod 755 "app/app/src/main/jniLibs/${ABI}/libproot.so" "app/app/src/main/jniLibs/${ABI}/libproot-loader.so"
-          file "app/app/src/main/jniLibs/${ABI}/libproot.so" "app/app/src/main/jniLibs/${ABI}/libproot-loader.so"
+          base="https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13"
+          for item in "arm64:arm64-v8a" "x86_64:x86_64"; do
+            arch="${item%%:*}"
+            abi="${item#*:}"
+            tmp="/tmp/proot-${arch}"
+            mkdir -p "${tmp}" "app/app/src/main/jniLibs/${abi}"
+            curl --fail --location --retry 3 "${base}/miracle-klipper-debian13-${arch}.zip" -o "/tmp/proot-${arch}.zip"
+            unzip -q "/tmp/proot-${arch}.zip" -d "${tmp}"
+            test -s "${tmp}/bin/proot"
+            test -s "${tmp}/libexec/proot/loader"
+            cp "${tmp}/bin/proot" "app/app/src/main/jniLibs/${abi}/libproot.so"
+            cp "${tmp}/libexec/proot/loader" "app/app/src/main/jniLibs/${abi}/libproot-loader.so"
+            chmod 755 "app/app/src/main/jniLibs/${abi}/libproot.so" "app/app/src/main/jniLibs/${abi}/libproot-loader.so"
+            file "app/app/src/main/jniLibs/${abi}/libproot.so" "app/app/src/main/jniLibs/${abi}/libproot-loader.so"
+          done
 
       - name: Build debug APK
         working-directory: app
@@ -59,7 +53,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: miracle-klipper-debug-${{ matrix.arch }}
+          name: miracle-klipper-debug
           path: app/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
