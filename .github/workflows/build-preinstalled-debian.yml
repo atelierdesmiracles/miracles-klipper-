@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           mkdir -p work/rootfs
           curl --fail --location --retry 3 "$ROOTFS_URL" -o work/rootfs.tar.xz
-          tar -xJf work/rootfs.tar.xz -C work/rootfs --strip-components=1
+          tar -xJf work/rootfs.tar.xz -C work/rootfs --strip-components=1 --exclude="dev/*" --exclude="./dev/*"
           test -x work/rootfs/usr/bin/apt-get
           mkdir -p work/rootfs/dev work/rootfs/proc work/rootfs/sys
       - name: Configure Debian repositories
