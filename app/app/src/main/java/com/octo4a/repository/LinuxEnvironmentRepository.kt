@@ -785,7 +785,7 @@ class LinuxEnvironmentRepositoryImpl(
         // failures. PRoot relies on ptrace; retrying apt or changing the temporary directory
         // cannot fix a kernel that denies PTRACE_TRACEME.
         val ptraceDenied = Regex(
-            """(?i)(ptrace\\s*\\(\\s*TRACEME\\s*\\).*operation not permitted|operation not permitted.*ptrace\\s*\\(\\s*TRACEME\\s*\\)|proot error:.*ptrace\\s*\\(\\s*TRACEME\\s*\\))"""
+            """(?i)(ptrace\s*\(\s*TRACEME\s*\).*operation not permitted|operation not permitted.*ptrace\s*\(\s*TRACEME\s*\)|proot error:.*ptrace\s*\(\s*TRACEME\s*\))"""
         ).containsMatchIn(details)
         return if (ptraceDenied) {
             "$details. Android or this device's security policy is blocking PRoot's ptrace call. " +
