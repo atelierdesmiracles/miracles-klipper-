@@ -90,7 +90,7 @@ class MoonrakerManifestTest {
     private fun validManifest() = MoonrakerManifest(
         schemaVersion = 1,
         repository = "https://github.com/Arksine/moonraker.git",
-        revision = "9e676eba6b02661a4dfa3ec6e7ac3f3504498e6d",
+        revision = "b559b9a81161f958a43c2f527b6ad96f73310d5d",
         minimumFreeStorageBytes = 536_870_912L
     )
 
@@ -113,8 +113,10 @@ class MoonrakerManifestTest {
          fc00::/7
          fe80::/10
         cors_domains:
-         http://127.0.0.1:5000
-         http://localhost:5000
+         http://127.0.0.1:8080
+         http://localhost:8080
+         http://*.local:8080
+         http://*.lan:8080
 
         [machine]
         provider: none
