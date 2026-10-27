@@ -5,6 +5,13 @@ export DEBIAN_FRONTEND=noninteractive
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 export PIP_NO_INPUT=1
 
+# A prebuilt release image already contains the complete stack. Keep this script
+# idempotent if it is ever invoked inside that image after first boot.
+if [ -f /var/lib/miracle/preinstalled-environment ]; then
+  echo "[Miracle Klipper] Preinstalled environment detected; skipping package and source installation."
+  exit 0
+fi
+
 LOG=/var/log/miracle-klipper-setup.log
 mkdir -p /var/log /opt/miracle-klipper /var/lib/miracle/printer_data/config /var/lib/miracle/printer_data/logs /var/lib/miracle/printer_data/gcodes /var/lib/miracle/printer_data/comms
 exec > >(tee -a "$LOG") 2>&1
