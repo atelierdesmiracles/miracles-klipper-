@@ -779,7 +779,21 @@ class LinuxEnvironmentRepositoryImpl(
                 else "${cause.javaClass.simpleName}: $detail"
             }
             .toList()
-        return causes.joinToString(" <- ").ifEmpty { error.javaClass.simpleName }
+        val details = causes.joinToString(" <- ").ifEmpty { error.javaClass.simpleName }
+
+        // Distinguish a device/kernel restriction from download, storage, or Debian package
+        // failures. PRoot relies on ptrace; retrying apt or changing the temporary directory
+        // cannot fix a kernel that denies PTRACE_TRACEME.
+        val ptraceDenied = Regex(
+            """(?i)(ptrace\\s*\\(\\s*TRACEME\\s*\\).*operation not permitted|operation not permitted.*ptrace\\s*\\(\\s*TRACEME\\s*\\)|proot error:.*ptrace\\s*\\(\\s*TRACEME\\s*\\))"""
+        ).containsMatchIn(details)
+        return if (ptraceDenied) {
+            "$details. Android or this device's security policy is blocking PRoot's ptrace call. " +
+                "The local Debian installation cannot continue on this configuration; this is not an apt repository error. " +
+                "Keep the diagnostic log and report the phone model, Android version, and ROM."
+        } else {
+            details
+        }
     }
 
     private fun recordFailure(message: String, error: Throwable) {
