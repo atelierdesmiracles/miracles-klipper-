@@ -362,10 +362,14 @@ class LinuxEnvironmentRepositoryImpl(
                 zip.closeEntry()
             }
         }
+        // The Android PRoot builder packages loader and loader-m32 as executable
+        // sidecar files at the ZIP root, not as a "loader/" directory.
         val androidProot = File(androidProotDir, "proot")
         val androidLoader = File(androidProotDir, "loader")
-        if (!androidProot.isFile || !androidLoader.isDirectory || androidLoader.listFiles().isNullOrEmpty()) {
-            throw IOException("Android-compatible PRoot archive is incomplete")
+        val androidLoaderM32 = File(androidProotDir, "loader-m32")
+        if (!androidProot.isFile || !androidLoader.isFile || !androidLoaderM32.isFile) {
+            staging.deleteRecursively()
+            throw IOException("Android-compatible PRoot archive must contain proot, loader and loader-m32")
         }
 
         if (bootstrapDirectory.exists() && !bootstrapDirectory.deleteRecursively()) {
@@ -374,9 +378,17 @@ class LinuxEnvironmentRepositoryImpl(
         ensureDirectoryExists(File(bootstrapDirectory, "bin"))
         ensureDirectoryExists(File(bootstrapDirectory, "libexec"))
         ensureDirectoryExists(File(bootstrapDirectory, "rootfs"))
+        ensureDirectoryExists(loader)
         androidProot.copyTo(proot, overwrite = true)
         if (!proot.setExecutable(true, false)) throw IOException("Could not mark Android PRoot executable")
-        androidLoader.copyRecursively(loader, overwrite = true)
+        androidLoader.copyTo(File(loader, "loader"), overwrite = true)
+        if (!File(loader, "loader").setExecutable(true, false)) {
+            throw IOException("Could not mark the Android PRoot loader executable")
+        }
+        androidLoaderM32.copyTo(File(loader, "loader-m32"), overwrite = true)
+        if (!File(loader, "loader-m32").setExecutable(true, false)) {
+            throw IOException("Could not mark the 32-bit Android PRoot loader executable")
+        }
         extractedRootfs.copyTo(bundledRootfs, overwrite = true)
         manifest.copyTo(File(bootstrapDirectory, "bootstrap-manifest.txt"), overwrite = true)
         File(bootstrapDirectory, "android-proot-version").writeText("android-bionic-proot-v1")
