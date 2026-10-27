@@ -218,7 +218,7 @@ class LinuxEnvironmentRepositoryImpl(
                     "Debian 13 Trixie and its tools are ready"
                 )
             } catch (cancelled: CancellationException) {
-                if (stagingDirectory.exists()) stagingDirectory.deleteRecursively()
+                if (stagingDirectory.exists()) deleteTreeForRetry(stagingDirectory)
                 state.value = LinuxEnvironmentProgress(
                     LinuxEnvironmentStage.Failed,
                     message = "Debian installation interrupted. Tap again to retry."
@@ -228,7 +228,7 @@ class LinuxEnvironmentRepositoryImpl(
                     "Debian installation interrupted", cancelled)
                 throw cancelled
             } catch (error: Throwable) {
-                if (stagingDirectory.exists()) stagingDirectory.deleteRecursively()
+                if (stagingDirectory.exists()) deleteTreeForRetry(stagingDirectory)
                 val details = describeFailure(error)
                 val message = "Debian environment installation failed: $details"
                 state.value = LinuxEnvironmentProgress(
