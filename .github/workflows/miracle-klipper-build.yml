@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - miracle-klipper-next
-    paths:
-      - "app/**"
-      - ".github/workflows/miracle-klipper-build.yml"
   workflow_dispatch:
 
 permissions:
