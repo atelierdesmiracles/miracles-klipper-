@@ -12,7 +12,7 @@
     "source": "termux/proot-distro",
     "sourceRelease": "v4.26.0",
     "url": "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13/debian-trixie-x86_64-preinstalled.tar.xz",
-    "sha256": "d8ce7f697083c3c4712f41c2a2b27bbd302f17cf05c81c450057de6348ea4012",
+    "sha256": "21175a0d05dcdeb1803e82db5b9f9e0716caa4319dcf8d869cb4f9b337bb4991",
     "archiveFormat": "tar.xz",
     "stripComponents": 1
   },
