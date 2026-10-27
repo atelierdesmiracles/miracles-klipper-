@@ -71,7 +71,7 @@ jobs:
           # Android 64-bit executables must target the selected CPU and must not request glibc's loader.
           actual_machine="$(readelf -h build/proot/extracted/proot | sed -n 's/^[[:space:]]*Machine:[[:space:]]*//p')"
           test "$actual_machine" = "$EXPECTED_ELF_MACHINE" || { echo "Wrong PRoot ELF machine: $actual_machine (expected $EXPECTED_ELF_MACHINE)"; exit 1; }
-          interpreter="$(readelf -l build/proot/extracted/proot | sed -n 's/.*Requesting program interpreter: \\([^]]*\\)].*/\\1/p')"
+          interpreter="$(readelf -l build/proot/extracted/proot | awk -F'[][]' '/Requesting program interpreter/ { sub(/^.*: /, "", $2); print $2 }')"
           if [ -n "$interpreter" ] && [ "$interpreter" != "/system/bin/linker64" ]; then
             echo "Incompatible PRoot interpreter: $interpreter (expected Android /system/bin/linker64 or a static binary)"
             exit 1
