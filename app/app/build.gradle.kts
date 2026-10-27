@@ -29,6 +29,8 @@ android {
     packagingOptions {
         jniLibs {
             pickFirsts += setOf("**/*.so")
+            // PRoot must be extracted into nativeLibraryDir: Android app filesDir is noexec.
+            useLegacyPackaging = true
         }
         resources {
             pickFirsts += setOf("META-INF/INDEX.LIST", "META-INF/io.netty.versions.properties")
