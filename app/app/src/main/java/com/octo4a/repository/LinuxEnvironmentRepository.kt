@@ -310,68 +310,9 @@ class LinuxEnvironmentRepositoryImpl(
             throw IOException("Miracle Klipper bootstrap bundle is incomplete")
         }
 
-        // The old bootstrap bundle contained a GNU/Linux PRoot binary. Android cannot
-        // load its glibc interpreter, so the shell reports the ELF bytes as script text.
-        // Replace it with a PRoot binary built for Android/Bionic from the Android NDK.
-        val androidArch = if (arch == "arm64") "aarch64" else "x86_64"
-        val androidProotArchiveName = "proot-$androidArch.zip"
-        val androidProotBaseUrl = "https://github.com/ahmed-alnassif/proot/releases/latest/download"
-        val androidProotArchive = File(staging, androidProotArchiveName)
-        val androidChecksums = File(staging, "checksums.txt")
-        downloadHttps("$androidProotBaseUrl/$androidProotArchiveName", androidProotArchive)
-        downloadHttps("$androidProotBaseUrl/checksums.txt", androidChecksums)
-        val expectedProotHash = androidChecksums.readLines()
-            .firstOrNull { it.trim().endsWith(androidProotArchiveName) }
-            ?.trim()?.split(Regex("\\s+"))?.firstOrNull()
-            ?: throw IOException("Android PRoot checksum is missing for $androidProotArchiveName")
-        if (!expectedProotHash.matches(Regex("[a-fA-F0-9]{64}"))) {
-            throw IOException("Android PRoot checksum file is invalid")
-        }
-        val prootDigest = MessageDigest.getInstance("SHA-256")
-        androidProotArchive.inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                prootDigest.update(buffer, 0, count)
-            }
-        }
-        val actualProotHash = prootDigest.digest().joinToString("") { "%02x".format(it) }
-        if (!actualProotHash.equals(expectedProotHash, ignoreCase = true)) {
-            throw IOException("Android PRoot SHA-256 verification failed")
-        }
-
-        val androidProotDir = File(staging, "android-proot")
-        ensureDirectoryExists(androidProotDir)
-        ZipInputStream(androidProotArchive.inputStream().buffered()).use { zip ->
-            while (true) {
-                val entry = zip.nextEntry ?: break
-                val normalized = entry.name.replace('\\', '/')
-                if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) {
-                    throw IOException("Unsafe path in Android PRoot archive")
-                }
-                val target = File(androidProotDir, normalized).canonicalFile
-                val prefix = androidProotDir.canonicalPath + File.separator
-                if (target != androidProotDir.canonicalFile && !target.path.startsWith(prefix)) {
-                    throw IOException("Android PRoot archive entry escapes staging directory")
-                }
-                if (entry.isDirectory) ensureDirectoryExists(target) else {
-                    ensureDirectoryExists(target.parentFile!!)
-                    FileOutputStream(target).use { output -> zip.copyTo(output) }
-                }
-                zip.closeEntry()
-            }
-        }
-        // The Android PRoot builder packages loader and loader-m32 as executable
-        // sidecar files at the ZIP root, not as a "loader/" directory.
-        val androidProot = File(androidProotDir, "proot")
-        val androidLoader = File(androidProotDir, "loader")
-        val androidLoaderM32 = File(androidProotDir, "loader-m32")
-        if (!androidProot.isFile || !androidLoader.isFile || !androidLoaderM32.isFile) {
-            staging.deleteRecursively()
-            throw IOException("Android-compatible PRoot archive must contain proot, loader and loader-m32")
-        }
-
+        // The release bundle already contains the Android/Bionic PRoot binary and its
+        // loader sidecars, all covered by the verified bundle SHA-256. Use these pinned
+        // assets directly instead of downloading a second, floating "latest" binary.
         if (bootstrapDirectory.exists() && !bootstrapDirectory.deleteRecursively()) {
             throw IOException("Could not replace the old bootstrap directory")
         }
@@ -379,16 +320,26 @@ class LinuxEnvironmentRepositoryImpl(
         ensureDirectoryExists(File(bootstrapDirectory, "libexec"))
         ensureDirectoryExists(File(bootstrapDirectory, "rootfs"))
         ensureDirectoryExists(loader)
-        androidProot.copyTo(proot, overwrite = true)
-        if (!proot.setExecutable(true, false)) throw IOException("Could not mark Android PRoot executable")
-        androidLoader.copyTo(File(loader, "loader"), overwrite = true)
-        if (!File(loader, "loader").setExecutable(true, false)) {
-            throw IOException("Could not mark the Android PRoot loader executable")
+
+        bundledProot.copyTo(proot, overwrite = true)
+        if (!proot.setExecutable(true, false)) {
+            throw IOException("Could not mark bundled Android PRoot executable")
         }
-        androidLoaderM32.copyTo(File(loader, "loader-m32"), overwrite = true)
-        if (!File(loader, "loader-m32").setExecutable(true, false)) {
-            throw IOException("Could not mark the 32-bit Android PRoot loader executable")
+
+        val bundledLoaderFiles = bundledLoader.listFiles()
+            ?: throw IOException("Could not read bundled PRoot loader sidecars")
+        if (bundledLoaderFiles.none { it.isFile && it.name == "loader" }) {
+            throw IOException("Miracle Klipper bootstrap bundle is missing the PRoot loader")
         }
+        for (sidecar in bundledLoaderFiles) {
+            if (!sidecar.isFile) continue
+            val destination = File(loader, sidecar.name)
+            sidecar.copyTo(destination, overwrite = true)
+            if (!destination.setExecutable(true, false)) {
+                throw IOException("Could not mark PRoot sidecar executable: ${sidecar.name}")
+            }
+        }
+
         extractedRootfs.copyTo(bundledRootfs, overwrite = true)
         manifest.copyTo(File(bootstrapDirectory, "bootstrap-manifest.txt"), overwrite = true)
         File(bootstrapDirectory, "android-proot-version").writeText("android-bionic-proot-v1")
