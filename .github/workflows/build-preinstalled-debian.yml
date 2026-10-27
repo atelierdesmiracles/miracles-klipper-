@@ -122,7 +122,7 @@ jobs:
           fi
 
           echo "[verify] Checking Moonraker entry point"
-          if [ ! -f work/rootfs/opt/miracle-klipper/moonraker/moonraker.py ]; then
+          if [ ! -f work/rootfs/opt/miracle-klipper/moonraker/moonraker/moonraker.py ]; then
             echo "::error::Moonraker entry point missing"
             find work/rootfs/opt/miracle-klipper -maxdepth 4 -type f -name moonraker.py -print || true
             ls -la work/rootfs/opt/miracle-klipper/moonraker/ || true
