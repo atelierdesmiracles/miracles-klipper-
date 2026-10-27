@@ -87,7 +87,7 @@ class InitialActivity: AppCompatActivity() {
         }
 
         skipSetupButton.setOnClickListener {
-            if (!rootAuthorized) return@setOnClickListener
+            if (!startupCheckComplete) return@setOnClickListener
             prefs.pendingKlipperSetup = false
             prefs.setupAssistantSkipped = true
             launchMainActivity()
