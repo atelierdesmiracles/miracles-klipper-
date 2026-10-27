@@ -156,7 +156,8 @@ class LinuxEnvironmentRepositoryImpl(
                 File(rootfsDirectory, "usr/bin/python3").exists() &&
                 File(baseDirectory, "bootstrap/bin/proot").canExecute() &&
                 File(baseDirectory, "bootstrap/libexec/proot").listFiles()?.isNotEmpty() == true &&
-                File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz").isFile
+                File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz").isFile &&
+                File(baseDirectory, "bootstrap/android-proot-version").readTextOrNull() == "android-bionic-proot-v1"
         }
 
     override suspend fun install() = withContext(Dispatchers.IO) {
@@ -177,7 +178,7 @@ class LinuxEnvironmentRepositoryImpl(
                 ensureStorage(manifest.minimumFreeStorageBytes)
 
                 if (stagingDirectory.exists() && !stagingDirectory.deleteRecursively()) {
-                    throw IOException("Could not remove the incomplete Debian installation")
+                    throw IOException("Could not remove the incomplete Debian installation; close any active installer process and retry")
                 }
                 ensureDirectoryExists(stagingDirectory)
                 ensureDirectoryExists(sharedDirectory)
@@ -264,7 +265,10 @@ class LinuxEnvironmentRepositoryImpl(
         val proot = File(bootstrapDirectory, "bin/proot")
         val loader = File(bootstrapDirectory, "libexec/proot")
         val bundledRootfs = File(bootstrapDirectory, "rootfs/debian-trixie.tar.xz")
-        if (proot.isFile && proot.canExecute() && loader.isDirectory && !loader.listFiles().isNullOrEmpty() && bundledRootfs.isFile) return
+        val prootVersion = File(bootstrapDirectory, "android-proot-version")
+        if (proot.isFile && proot.canExecute() && loader.isDirectory &&
+            !loader.listFiles().isNullOrEmpty() && bundledRootfs.isFile &&
+            prootVersion.readTextOrNull() == "android-bionic-proot-v1") return
         val arch = when (environmentArchitecture) { LinuxArchitecture.ARM64 -> "arm64"; LinuxArchitecture.X86_64 -> "x86_64"; else -> throw IOException("Unsupported Miracle Klipper bootstrap architecture: $environmentArchitecture") }
         val baseUrl = "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13"
         val bundleName = "miracle-klipper-debian13-$arch.zip"
@@ -342,7 +346,7 @@ class LinuxEnvironmentRepositoryImpl(
         ZipInputStream(androidProotArchive.inputStream().buffered()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                val normalized = entry.name.replace('\\\\', '/')
+                val normalized = entry.name.replace('\\', '/')
                 if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) {
                     throw IOException("Unsafe path in Android PRoot archive")
                 }
@@ -375,6 +379,7 @@ class LinuxEnvironmentRepositoryImpl(
         androidLoader.copyRecursively(loader, overwrite = true)
         extractedRootfs.copyTo(bundledRootfs, overwrite = true)
         manifest.copyTo(File(bootstrapDirectory, "bootstrap-manifest.txt"), overwrite = true)
+        File(bootstrapDirectory, "android-proot-version").writeText("android-bionic-proot-v1")
         staging.deleteRecursively()
     }
 
