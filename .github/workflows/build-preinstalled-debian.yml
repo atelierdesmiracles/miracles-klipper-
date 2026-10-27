@@ -94,12 +94,47 @@ jobs:
           cp app/app/src/main/assets/linux/install-miracle-klipper.sh work/rootfs/tmp/install-miracle-klipper.sh
           chmod +x work/rootfs/tmp/install-miracle-klipper.sh
           sudo chroot work/rootfs /bin/bash /tmp/install-miracle-klipper.sh
-          sudo chroot work/rootfs /usr/bin/apt-get check
-          test -x work/rootfs/opt/miracle-klipper/venvs/klipper/bin/python
-          test -x work/rootfs/opt/miracle-klipper/venvs/moonraker/bin/python
-          test -f work/rootfs/opt/miracle-klipper/klipper/klippy/klippy.py
-          test -f work/rootfs/opt/miracle-klipper/moonraker/moonraker.py
-          test -f work/rootfs/var/www/mainsail/index.html
+          echo "[verify] Checking Debian package database"
+          if ! sudo chroot work/rootfs /usr/bin/apt-get check; then
+            echo "::error::Debian package dependency check failed"
+            exit 1
+          fi
+
+          echo "[verify] Checking Klipper Python runtime"
+          if ! sudo chroot work/rootfs /opt/miracle-klipper/venvs/klipper/bin/python --version; then
+            echo "::error::Klipper virtualenv Python is missing or cannot run inside Debian"
+            ls -la work/rootfs/opt/miracle-klipper/venvs/klipper/bin/ || true
+            exit 1
+          fi
+
+          echo "[verify] Checking Moonraker Python runtime"
+          if ! sudo chroot work/rootfs /opt/miracle-klipper/venvs/moonraker/bin/python --version; then
+            echo "::error::Moonraker virtualenv Python is missing or cannot run inside Debian"
+            ls -la work/rootfs/opt/miracle-klipper/venvs/moonraker/bin/ || true
+            exit 1
+          fi
+
+          echo "[verify] Checking Klipper entry point"
+          if [ ! -f work/rootfs/opt/miracle-klipper/klipper/klippy/klippy.py ]; then
+            echo "::error::Klipper entry point missing"
+            find work/rootfs/opt/miracle-klipper -maxdepth 4 -type f -name klippy.py -print || true
+            exit 1
+          fi
+
+          echo "[verify] Checking Moonraker entry point"
+          if [ ! -f work/rootfs/opt/miracle-klipper/moonraker/moonraker.py ]; then
+            echo "::error::Moonraker entry point missing"
+            find work/rootfs/opt/miracle-klipper -maxdepth 4 -type f -name moonraker.py -print || true
+            ls -la work/rootfs/opt/miracle-klipper/moonraker/ || true
+            exit 1
+          fi
+
+          echo "[verify] Checking Mainsail web files"
+          if [ ! -f work/rootfs/var/www/mainsail/index.html ]; then
+            echo "::error::Mainsail index.html missing"
+            find work/rootfs/var/www/mainsail -maxdepth 3 -type f -print | head -50 || true
+            exit 1
+          fi
           mkdir -p work/rootfs/var/lib/miracle
           printf 'schema=1\narch=${{ matrix.arch }}\ndebian=13\nstack=klipper-moonraker-mainsail\n' > work/rootfs/var/lib/miracle/preinstalled-environment
           rm -f work/rootfs/tmp/install-miracle-klipper.sh
