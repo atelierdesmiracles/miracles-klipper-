@@ -298,15 +298,81 @@ class LinuxEnvironmentRepositoryImpl(
         val manifest = File(extracted, "bootstrap-manifest.txt")
         val manifestText = if (manifest.isFile) manifest.readText() else ""
         if (!manifestText.contains("version=13-trixie") || !manifestText.contains("architecture=$arch") || !manifestText.contains("rootfs_sha256=${rootfs.sha256}")) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap metadata does not match this device or Debian manifest") }
-        val extractedProot = File(extracted, "bin/proot")
-        val extractedLoader = File(extracted, "libexec/proot")
+        val bundledProot = File(extracted, "bin/proot")
+        val bundledLoader = File(extracted, "libexec/proot")
         val extractedRootfs = File(extracted, "rootfs/debian-trixie.tar.xz")
-        if (!extractedProot.isFile || !extractedLoader.isDirectory || extractedLoader.listFiles().isNullOrEmpty() || !extractedRootfs.isFile) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap is incomplete") }
-        if (bootstrapDirectory.exists() && !bootstrapDirectory.deleteRecursively()) throw IOException("Could not replace the old bootstrap directory")
-        ensureDirectoryExists(File(bootstrapDirectory, "bin")); ensureDirectoryExists(File(bootstrapDirectory, "libexec")); ensureDirectoryExists(File(bootstrapDirectory, "rootfs"))
-        extractedProot.copyTo(proot, overwrite = true)
-        if (!proot.setExecutable(true, false)) throw IOException("Could not mark Miracle Klipper PRoot executable")
-        extractedLoader.copyRecursively(loader, overwrite = true)
+        if (!bundledProot.isFile || !bundledLoader.isDirectory || bundledLoader.listFiles().isNullOrEmpty() || !extractedRootfs.isFile) {
+            staging.deleteRecursively()
+            throw IOException("Miracle Klipper bootstrap bundle is incomplete")
+        }
+
+        // The old bootstrap bundle contained a GNU/Linux PRoot binary. Android cannot
+        // load its glibc interpreter, so the shell reports the ELF bytes as script text.
+        // Replace it with a PRoot binary built for Android/Bionic from the Android NDK.
+        val androidArch = if (arch == "arm64") "aarch64" else "x86_64"
+        val androidProotArchiveName = "proot-$androidArch.zip"
+        val androidProotBaseUrl = "https://github.com/ahmed-alnassif/proot/releases/latest/download"
+        val androidProotArchive = File(staging, androidProotArchiveName)
+        val androidChecksums = File(staging, "checksums.txt")
+        downloadHttps("$androidProotBaseUrl/$androidProotArchiveName", androidProotArchive)
+        downloadHttps("$androidProotBaseUrl/checksums.txt", androidChecksums)
+        val expectedProotHash = androidChecksums.readLines()
+            .firstOrNull { it.trim().endsWith(androidProotArchiveName) }
+            ?.trim()?.split(Regex("\\s+"))?.firstOrNull()
+            ?: throw IOException("Android PRoot checksum is missing for $androidProotArchiveName")
+        if (!expectedProotHash.matches(Regex("[a-fA-F0-9]{64}"))) {
+            throw IOException("Android PRoot checksum file is invalid")
+        }
+        val prootDigest = MessageDigest.getInstance("SHA-256")
+        androidProotArchive.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                prootDigest.update(buffer, 0, count)
+            }
+        }
+        val actualProotHash = prootDigest.digest().joinToString("") { "%02x".format(it) }
+        if (!actualProotHash.equals(expectedProotHash, ignoreCase = true)) {
+            throw IOException("Android PRoot SHA-256 verification failed")
+        }
+
+        val androidProotDir = File(staging, "android-proot")
+        ensureDirectoryExists(androidProotDir)
+        ZipInputStream(androidProotArchive.inputStream().buffered()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                val normalized = entry.name.replace('\\\\', '/')
+                if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) {
+                    throw IOException("Unsafe path in Android PRoot archive")
+                }
+                val target = File(androidProotDir, normalized).canonicalFile
+                val prefix = androidProotDir.canonicalPath + File.separator
+                if (target != androidProotDir.canonicalFile && !target.path.startsWith(prefix)) {
+                    throw IOException("Android PRoot archive entry escapes staging directory")
+                }
+                if (entry.isDirectory) ensureDirectoryExists(target) else {
+                    ensureDirectoryExists(target.parentFile!!)
+                    FileOutputStream(target).use { output -> zip.copyTo(output) }
+                }
+                zip.closeEntry()
+            }
+        }
+        val androidProot = File(androidProotDir, "proot")
+        val androidLoader = File(androidProotDir, "loader")
+        if (!androidProot.isFile || !androidLoader.isDirectory || androidLoader.listFiles().isNullOrEmpty()) {
+            throw IOException("Android-compatible PRoot archive is incomplete")
+        }
+
+        if (bootstrapDirectory.exists() && !bootstrapDirectory.deleteRecursively()) {
+            throw IOException("Could not replace the old bootstrap directory")
+        }
+        ensureDirectoryExists(File(bootstrapDirectory, "bin"))
+        ensureDirectoryExists(File(bootstrapDirectory, "libexec"))
+        ensureDirectoryExists(File(bootstrapDirectory, "rootfs"))
+        androidProot.copyTo(proot, overwrite = true)
+        if (!proot.setExecutable(true, false)) throw IOException("Could not mark Android PRoot executable")
+        androidLoader.copyRecursively(loader, overwrite = true)
         extractedRootfs.copyTo(bundledRootfs, overwrite = true)
         manifest.copyTo(File(bootstrapDirectory, "bootstrap-manifest.txt"), overwrite = true)
         staging.deleteRecursively()
