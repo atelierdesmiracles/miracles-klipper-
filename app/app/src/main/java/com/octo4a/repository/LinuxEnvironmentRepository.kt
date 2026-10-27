@@ -201,6 +201,9 @@ class LinuxEnvironmentRepositoryImpl(
                 )
                 val stagedRootfs = File(stagingDirectory, "rootfs")
                 extractRootfs(archive, stagedRootfs)
+                // The Android app must consume the CI-built image. Running dpkg on-device
+                // through PRoot caused backup-hard-link failures on Android filesystems.
+                validatePreinstalledEnvironment(stagedRootfs)
                 configureDebian(stagedRootfs, manifest)
 
                 state.value = LinuxEnvironmentProgress(
@@ -589,52 +592,50 @@ class LinuxEnvironmentRepositoryImpl(
         }
     }
 
-    private fun installPackages(rootfs: File, manifest: LinuxEnvironmentManifest) {
-        val preinstalledMarker = File(rootfs, "var/lib/miracle/preinstalled-environment")
-        if (preinstalledMarker.isFile) {
-            val markerText = preinstalledMarker.readText()
-            val expectedArch = if (environmentArchitecture == LinuxArchitecture.ARM64) "arm64" else "x86_64"
-            if (!markerText.contains("schema=1") ||
-                !markerText.contains("arch=$expectedArch") ||
-                !markerText.contains("debian=13") ||
-                !markerText.contains("stack=klipper-moonraker-mainsail")) {
-                throw IOException("Preinstalled Debian environment metadata does not match this device")
-            }
-            // The release rootfs already contains system packages, Python environments,
-            // Klipper, Moonraker and Mainsail. Validate it rather than rerunning apt/pip.
-            runInRootfs(rootfs, listOf("/usr/bin/apt-get", "check"))
-            runInRootfs(rootfs, listOf("/opt/miracle-klipper/venvs/klipper/bin/python", "--version"))
-            runInRootfs(rootfs, listOf("/opt/miracle-klipper/venvs/moonraker/bin/python", "--version"))
-            if (!File(rootfs, "var/www/mainsail/index.html").isFile ||
-                !File(rootfs, "opt/miracle-klipper/klipper/klippy/klippy.py").isFile ||
-                !File(rootfs, "opt/miracle-klipper/moonraker/moonraker.py").isFile) {
-                throw IOException("Preinstalled Miracle Klipper stack is incomplete")
-            }
-            return
+    private fun validatePreinstalledEnvironment(rootfs: File) {
+        val marker = File(rootfs, "var/lib/miracle/preinstalled-environment")
+        if (!marker.isFile) {
+            throw IOException(
+                "The downloaded Debian image is not a preinstalled Miracle Klipper environment. " +
+                    "The legacy on-device apt/dpkg installation is disabled because dpkg hard-link " +
+                    "operations fail on some Android PRoot configurations. Update the app and retry."
+            )
+        }
+        val markerLines = marker.readLines().map { it.trim() }.toSet()
+        val expectedArch = if (environmentArchitecture == LinuxArchitecture.ARM64) "arm64" else "x86_64"
+        if (!setOf(
+                "schema=1",
+                "arch=\${expectedArch}",
+                "debian=13",
+                "stack=klipper-moonraker-mainsail"
+            ).all { it in markerLines }) {
+            throw IOException("Preinstalled Debian environment metadata does not match this device")
         }
 
-        val policy = File(rootfs, "usr/sbin/policy-rc.d")
-        val hadPolicy = policy.exists()
-        val oldPolicy = if (hadPolicy) policy.readBytes() else null
-        policy.parentFile?.mkdirs()
-        policy.writeText("#!/bin/sh\nexit 101\n")
-        policy.setExecutable(true, false)
-        try {
-            runInRootfs(rootfs, listOf("/usr/bin/apt-get", "-o", "Dpkg::Use-Pty=0", "update"))
-            val packages = (manifest.packages.foundation + manifest.packages.klipperMcuToolchain).distinct()
-            runInRootfs(
-                rootfs,
-                listOf("/usr/bin/apt-get", "install", "-y", "--no-install-recommends") + packages
+        val requiredFiles = listOf(
+            "usr/bin/apt-get",
+            "usr/bin/python3",
+            "opt/miracle-klipper/venvs/klipper/bin/python",
+            "opt/miracle-klipper/venvs/moonraker/bin/python",
+            "opt/miracle-klipper/klipper/klippy/klippy.py",
+            "opt/miracle-klipper/moonraker/moonraker.py",
+            "var/www/mainsail/index.html"
+        )
+        val missing = requiredFiles.filterNot { File(rootfs, it).isFile }
+        if (missing.isNotEmpty()) {
+            throw IOException(
+                "Preinstalled Miracle Klipper environment is incomplete; missing: \${missing.joinToString()}"
             )
-            runInRootfs(rootfs, listOf("/usr/bin/apt-get", "check"))
-        } finally {
-            if (hadPolicy && oldPolicy != null) {
-                policy.writeBytes(oldPolicy)
-            } else {
-                policy.delete()
-            }
         }
-        installKlipperStack(rootfs)
+    }
+
+    private fun installPackages(rootfs: File, manifest: LinuxEnvironmentManifest) {
+        // Packages are installed in CI inside a real Debian chroot. On Android, validate
+        // the immutable preinstalled stack instead of unpacking packages with dpkg/PRoot.
+        validatePreinstalledEnvironment(rootfs)
+        runInRootfs(rootfs, listOf("/usr/bin/apt-get", "check"))
+        runInRootfs(rootfs, listOf("/opt/miracle-klipper/venvs/klipper/bin/python", "--version"))
+        runInRootfs(rootfs, listOf("/opt/miracle-klipper/venvs/moonraker/bin/python", "--version"))
     }
 
     private fun installKlipperStack(rootfs: File) {
