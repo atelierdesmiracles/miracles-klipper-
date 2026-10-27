@@ -105,7 +105,13 @@ jobs:
       - name: Package and checksum environment
         run: |
           set -euo pipefail
-          tar --numeric-owner --xattrs --acls --exclude="rootfs/dev/*" --exclude="rootfs/proc/*" --exclude="rootfs/sys/*" -cJf miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz -C work rootfs
+          # Unmount host pseudo-filesystems before archiving, so tar cannot traverse live /proc or /sys.
+          sudo umount work/rootfs/sys
+          sudo umount work/rootfs/proc
+          sudo umount work/rootfs/dev
+          # Archive as root to preserve ownership and read protected runtime/cache directories.
+          sudo tar --numeric-owner --xattrs --acls --exclude="rootfs/dev/*" --exclude="rootfs/proc/*" --exclude="rootfs/sys/*" -cJf miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz -C work rootfs
+          sudo chown "$USER":"$USER" miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz
           sha256sum miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz > miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz.sha256
           du -h miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz
           cat miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz.sha256
