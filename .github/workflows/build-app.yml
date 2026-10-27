@@ -110,7 +110,7 @@ jobs:
 # The CI intentionally uses a placeholder Bugsnag key; do not upload a release to Bugsnag.
       - name: Build release APK
         working-directory: ./app
-        run: bash ./gradlew --no-daemon assembleRelease -x bugsnagReleaseReleaseTask
+        run: bash ./gradlew --no-daemon assembleRelease -x bugsnagReleaseReleaseTask -x uploadBugsnagNdkReleaseMapping
 
       - name: Upload APKs and test reports
         if: always()
