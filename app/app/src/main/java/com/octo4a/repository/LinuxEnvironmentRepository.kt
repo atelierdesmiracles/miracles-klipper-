@@ -653,6 +653,14 @@ class LinuxEnvironmentRepositoryImpl(
         builder.redirectErrorStream(true)
         builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
+        // PRoot builds distributed by Termux-style Android packages use a separate
+        // Android/Bionic loader. Without PROOT_LOADER, PRoot may fall back to an
+        // invalid compiled-in path and try to interpret the ELF as a shell script.
+        val prootLoader = File(baseDirectory, "bootstrap/libexec/proot/loader")
+        if (!prootLoader.isFile || !prootLoader.canExecute()) {
+            throw IOException("Android PRoot loader is missing or not executable: ${prootLoader.absolutePath}")
+        }
+        builder.environment()["PROOT_LOADER"] = prootLoader.absolutePath
         builder.environment().remove("PROOT_L2S_DIR")
         builder.environment()["PWD"] = "/"
         builder.environment()["HOME"] = "/root"
