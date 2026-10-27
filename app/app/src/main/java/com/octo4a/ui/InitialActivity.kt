@@ -98,7 +98,13 @@ class InitialActivity: AppCompatActivity() {
         // Check root status immediately on launch, before asking the user to choose an architecture.
         // Root is optional: the app uses its own PRoot runtime either way.
         requestRootAccess {
-            showArchitectureSelectionDialog()
+            val hostArchitecture = LinuxArchitecture.hostArchitecture()
+            if (hostArchitecture != null && prefs.selectedLinuxArchitecture == hostArchitecture) {
+                // Do not interrupt every later launch with the first-run architecture dialog.
+                routeExistingInstallation()
+            } else {
+                showArchitectureSelectionDialog()
+            }
         }
     }
 
@@ -119,7 +125,10 @@ class InitialActivity: AppCompatActivity() {
         var selectedIndex = if (selectedArchitecture == "x86_64") 1 else 0
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.architecture_title)
-            .setMessage(getString(R.string.architecture_message, hostArchitecture))
+            .setMessage(
+                getString(R.string.architecture_message, hostArchitecture) +
+                    "\n\n" + rootStatusText.text.toString()
+            )
             .setCancelable(false)
             .setSingleChoiceItems(architectures, selectedIndex) { _, which ->
                 // Keep the dialog open while the user makes their choice.
