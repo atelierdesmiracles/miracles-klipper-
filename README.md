@@ -20,7 +20,7 @@ Miracle Klipper is an Android-hosted Klipper project based on the existing Octo4
 - A compatible printer MCU and Klipper configuration.
 - A computer with Git, JDK 11, Android SDK/NDK, and internet access for development builds.
 
-The app currently uses the legacy application ID `com.octo4a`. This is intentionally retained for now to avoid accidentally breaking upgrade compatibility. Changing it requires an explicit migration decision.
+The Android application ID is `fr.atelierdesmiracles.miracleklipper`. The existing Kotlin source namespace remains `com.octo4a` for now to avoid a risky bulk package migration. This means Miracle Klipper is a separate Android app from Octo4a; it cannot be installed as an in-place update over the original Octo4a package. The Debian/PRoot bootstrap is downloaded from the Miracle Klipper release and verified before extraction; the app must not fall back to the Octo4a bootstrap builder.
 
 ## Build
 
