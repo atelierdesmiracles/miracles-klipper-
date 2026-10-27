@@ -369,12 +369,35 @@ class KlipperRepositoryImpl(
 
     private fun ensureInitialPrinterConfiguration() {
         ensurePrinterDataDirectories()
+        val starterTemplate = """
+            # Miracle Klipper printer configuration template.
+            # Add a printer-specific [mcu] section and a complete [printer] section before starting Klipper.
+            # Select a config from the official Klipper config examples that matches your printer and control board.
+            # These Moonraker features are included as baseline; no printer pins or kinematics are guessed.
+
+            [virtual_sdcard]
+            path: /var/lib/miracle/printer_data/gcodes
+
+            [pause_resume]
+
+            [display_status]
+        """.trimIndent() + "\n"
+
         if (!configFile.exists()) {
-            configFile.writeText(
-                "# Miracle Klipper printer configuration template.\n" +
-                    "# Add a printer-specific [mcu] section and a complete [printer] section before starting Klipper.\n" +
-                    "# Select a configuration that matches your printer and control board.\n"
-            )
+            configFile.writeText(starterTemplate)
+            return
+        }
+
+        // Upgrade only the original comments-only starter. Never replace a user's
+        // partially configured or printer-specific file.
+        val current = configFile.readText()
+        val containsOnlyComments = current.lineSequence().all { line ->
+            line.isBlank() || line.trimStart().startsWith("#")
+        }
+        if (containsOnlyComments &&
+            current.contains("# Miracle Klipper printer configuration template.")
+        ) {
+            configFile.writeText(starterTemplate)
         }
     }
 
