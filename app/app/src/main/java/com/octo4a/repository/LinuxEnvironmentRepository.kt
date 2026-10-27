@@ -157,24 +157,32 @@ class LinuxEnvironmentRepositoryImpl(
                 File(baseDirectory, "bootstrap/bin/proot").canExecute() &&
                 File(baseDirectory, "bootstrap/libexec/proot").listFiles()?.isNotEmpty() == true &&
                 File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz").isFile &&
-                File(baseDirectory, "bootstrap/android-proot-version").let { it.isFile && it.readText().trim() == "android-bionic-proot-v2-pinned" }
+                File(baseDirectory, "bootstrap/android-proot-version").let {
+                    it.isFile && it.readText().trim() in setOf(
+                        "android-bionic-proot-v1",
+                        "android-bionic-proot-v2-pinned"
+                    )
+                }
         }
 
     override suspend fun install() = withContext(Dispatchers.IO) {
         installMutex.withLock {
-            if (isReady) {
-                state.value = LinuxEnvironmentProgress(
-                    LinuxEnvironmentStage.Ready,
-                    message = "Debian 13 is already installed"
-                )
-                return@withLock
-            }
-
             try {
                 ensureSupportedArchitecture()
                 val manifest = loadManifest()
                 manifest.validate()
+
+                // Refresh old bootstrap assets independently of the Debian rootfs.
+                // This avoids reinstalling Debian just to replace a PRoot binary.
                 ensureBootstrapTools(manifest.rootfs)
+                if (isReady) {
+                    state.value = LinuxEnvironmentProgress(
+                        LinuxEnvironmentStage.Ready,
+                        message = "Debian 13 is already installed"
+                    )
+                    return@withLock
+                }
+
                 ensureStorage(manifest.minimumFreeStorageBytes)
 
                 if (stagingDirectory.exists() && !stagingDirectory.deleteRecursively()) {
