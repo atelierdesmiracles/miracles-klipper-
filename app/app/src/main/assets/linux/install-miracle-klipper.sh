@@ -156,7 +156,7 @@ mkdir -p "$DATA/logs" "$DATA/comms"
 
 if ! pgrep -f '[m]oonraker/moonraker.py' >/dev/null 2>&1; then
   nohup /opt/miracle-klipper/venvs/moonraker/bin/python \
-    /opt/miracle-klipper/moonraker/moonraker.py \
+    /opt/miracle-klipper/moonraker/moonraker/moonraker.py \
     -c "$DATA/config/moonraker.conf" >> "$DATA/logs/moonraker.log" 2>&1 &
 fi
 
