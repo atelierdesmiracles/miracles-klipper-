@@ -107,6 +107,7 @@ jobs:
         working-directory: ./app
         run: bash ./gradlew --no-daemon assembleDebug
 
+# Rebuild on every manifest update so APKs embed the current verified Debian rootfs SHA-256 values.
 # The CI intentionally uses a placeholder Bugsnag key; do not upload a release to Bugsnag.
       - name: Build release APK
         working-directory: ./app
