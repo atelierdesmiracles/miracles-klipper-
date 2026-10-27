@@ -44,6 +44,31 @@ class BootstrapArchiveSafetyTest {
         }
     }
 
+    @Test(expected = IOException::class)
+    fun rejectsAbsolutePaths() {
+        val staging = Files.createTempDirectory("bootstrap-safety").toFile()
+
+        try {
+            BootstrapArchiveSafety.resolveEntryTarget(
+                staging,
+                File(staging.parentFile, "outside").absolutePath
+            )
+        } finally {
+            staging.deleteRecursively()
+        }
+    }
+
+    @Test(expected = IOException::class)
+    fun rejectsNullBytesInEntryNames() {
+        val staging = Files.createTempDirectory("bootstrap-safety").toFile()
+
+        try {
+            BootstrapArchiveSafety.resolveEntryTarget(staging, "etc/\u0000profile")
+        } finally {
+            staging.deleteRecursively()
+        }
+    }
+
     @Test
     fun checksAvailableSpaceWithoutOverflow() {
         assertTrue(BootstrapArchiveSafety.hasEnoughSpace(100, 40, 60))

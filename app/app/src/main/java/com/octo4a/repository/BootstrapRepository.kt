@@ -48,11 +48,9 @@ class BootstrapRepositoryImpl(
     private val githubRepository: GithubRepository,
     val context: Context
 ) : BootstrapRepository {
-    companion object {
-        private val FILES_PATH = "/data/data/com.octo4a/files"
-        val PREFIX_PATH = "$FILES_PATH/bootstrap"
-        val HOME_PATH = "$FILES_PATH"
-    }
+    private val appFilesPath: String = context.filesDir.absolutePath
+    private val prefixPath: String = "$appFilesPath/bootstrap"
+    private val homePath: String = appFilesPath
 
     val filesPath: String by lazy {
         (context.getExternalFilesDir(null) ?: context.filesDir).absolutePath
@@ -85,7 +83,7 @@ class BootstrapRepositoryImpl(
         withContext(Dispatchers.IO) {
             _downloadProgressFlow.value = 0
 
-            val prefixFile = File(PREFIX_PATH)
+            val prefixFile = File(prefixPath)
             if (prefixFile.isDirectory) {
                 return@withContext
             }
@@ -98,8 +96,8 @@ class BootstrapRepositoryImpl(
                 return@withContext
             }
 
-            val stagingDirectory = File("${FILES_PATH}/bootstrap-staging")
-            val storageDirectory = File(FILES_PATH)
+            val stagingDirectory = File("$appFilesPath/bootstrap-staging")
+            val storageDirectory = File(appFilesPath)
             ensureDirectoryExists(storageDirectory)
             if (stagingDirectory.exists()) {
                 deleteFolder(stagingDirectory)
@@ -190,7 +188,7 @@ class BootstrapRepositoryImpl(
                     !File(stagingDirectory, "rootfs.tar.xz").isFile ||
                     !File(stagingDirectory, "bin/minitar").isFile
                 ) {
-                    throw IOException("Downloaded archive is not a valid Octo4a bootstrap")
+                    throw IOException("Downloaded archive is not a valid Miracle Klipper runtime archive")
                 }
 
                 if (!stagingDirectory.renameTo(prefixFile)) {
@@ -229,21 +227,8 @@ class BootstrapRepositoryImpl(
             runCommand("ls").waitAndPrintOutput(logger)
             logger.log(this) { "Bootstrap extracted, setting it up..." }
 
-            runCommand("chmod -R 755 /mnt/external/").waitAndPrintOutput(
-                logger
-            )
-
-            runCommand("cp -rf /home/octoprint/extensions /mnt/external/").waitAndPrintOutput(
-                logger
-            )
-
-            runCommand("chown root:root /mnt/external/").waitAndPrintOutput(
-                logger
-            )
-            runCommand("mkdir -p /mnt/external/.octoprint/plugins").waitAndPrintOutput(logger)
-            runCommand("cp /home/octoprint/comm-fix.py /mnt/external/.octoprint/plugins").waitAndPrintOutput(
-                logger
-            )
+            // The legacy archive is retained only as a temporary source of the Android PRoot
+            // executable. Miracle Klipper no longer copies or configures any OctoPrint files.
         }
     }
 
@@ -278,7 +263,7 @@ class BootstrapRepositoryImpl(
         bash: Boolean
     ): Process {
         logger.log { ">$command" }
-        val FILES = "/data/data/com.octo4a/files"
+        val FILES = appFilesPath
         val directory = File(filesPath)
         if (!directory.exists()) {
             directory.mkdirs()
@@ -288,9 +273,11 @@ class BootstrapRepositoryImpl(
         pb.environment()["HOME"] = "$FILES/bootstrap"
         pb.environment()["LANG"] = "'en_US.UTF-8'"
         pb.environment()["PWD"] = "$FILES/bootstrap"
+        // Android kernels may deny PRoot seccomp/ptrace during initial extraction.
+        pb.environment()["PROOT_NO_SECCOMP"] = "1"
         logger.log(this) {filesPath}
         pb.environment()["EXTRA_BIND"] =
-            "-b ${filesPath}:/mnt/external -b /data/data/com.octo4a/files/serialpipe:/dev/ttyOcto4a"
+            "-b ${filesPath}:/mnt/external -b $appFilesPath/serialpipe:/dev/ttyOcto4a"
         pb.environment()["PATH"] =
             "/sbin:/system/sbin:/product/bin:/apex/com.android.runtime/bin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin"
         pb.directory(File("$FILES/bootstrap"))
@@ -307,7 +294,7 @@ class BootstrapRepositoryImpl(
     }
 
     override fun ensureHomeDirectory() {
-        val homeFile = File(HOME_PATH)
+        val homeFile = File(homePath)
         if (!homeFile.exists()) {
             homeFile.mkdir()
         }
@@ -315,7 +302,7 @@ class BootstrapRepositoryImpl(
 
     override val isSSHConfigured: Boolean
         get() {
-            return File("/data/data/com.octo4a/files/bootstrap/bootstrap/home/octoprint/.ssh_configured").exists()
+            return File("$appFilesPath/bootstrap/bootstrap/home/octoprint/.ssh_configured").exists()
         }
 
     override val bootstrapVersion: String
@@ -341,5 +328,5 @@ class BootstrapRepositoryImpl(
     }
 
     override val isBootstrapInstalled: Boolean
-        get() = File("$FILES_PATH/bootstrap/bootstrap").exists()
+        get() = File("$prefixPath/bootstrap").exists()
 }

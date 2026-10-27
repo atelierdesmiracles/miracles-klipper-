@@ -1,6 +1,7 @@
 package com.octo4a.repository
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
@@ -68,7 +69,8 @@ class KlipperRepositoryImpl(
     private val logger: LoggerRepository
 ) : KlipperRepository {
     private val baseDirectory = File(context.filesDir, "miracle-klipper")
-    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-arm64")
+    private val environmentArchitecture = LinuxArchitecture.resolve(context)
+    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-$environmentArchitecture")
     private val sharedDirectory = File(baseDirectory, "shared")
     private val softwareDirectory = File(sharedDirectory, "software")
     private val printerDataDirectory = File(sharedDirectory, "printer_data")
@@ -78,6 +80,8 @@ class KlipperRepositoryImpl(
     private val installLog = File(baseDirectory, "logs/klipper-install.log")
     private val runtimeLog = File(printerDataDirectory, "logs/klipper-process.log")
     private val installMutex = Mutex()
+    // Serialize start attempts so concurrent service/activity requests cannot launch duplicate processes.
+    private val startMutex = Mutex()
     private val processLock = Any()
     private var activeProcess: ActiveKlipperProcess? = null
 
@@ -243,6 +247,7 @@ class KlipperRepositoryImpl(
     }
 
     override suspend fun start() = withContext(Dispatchers.IO) {
+        startMutex.withLock {
         if (!isInstalled) throw IOException("Install Klipper before starting it")
         if (!isPrinterConfigurationReady) {
             val message = "Add valid [mcu] and [printer] sections to printer.cfg before starting Klipper"
@@ -255,9 +260,10 @@ class KlipperRepositoryImpl(
         }
         if (existing != null) {
             state.value = KlipperProgress(KlipperStage.Running, "Klipper host process is running", manifest.revision)
-            return@withContext
+            return@withLock
         }
 
+        var startedProcess: ActiveKlipperProcess? = null
         try {
             ensurePrinterDataDirectories()
             ensureDirectoryExists(runtimeLog.parentFile!!)
@@ -279,6 +285,7 @@ class KlipperRepositoryImpl(
             )
             val process = createProotProcess(command, guestPath(source)).start()
             val active = ActiveKlipperProcess(process)
+            startedProcess = active
             synchronized(processLock) {
                 activeProcess = active
             }
@@ -300,12 +307,27 @@ class KlipperRepositoryImpl(
                 throw IOException(message)
             }
         } catch (cancelled: CancellationException) {
+            startedProcess?.let { abortStartupProcess(it) }
             throw cancelled
         } catch (error: Exception) {
+            startedProcess?.let { abortStartupProcess(it) }
             val message = "Klipper could not start: ${error.message ?: error.javaClass.simpleName}"
             state.value = KlipperProgress(KlipperStage.Failed, message, manifest.revision)
             logger.logError(this@KlipperRepositoryImpl, message, error)
             throw IOException(message, error)
+        }
+        }
+    }
+
+    private fun abortStartupProcess(active: ActiveKlipperProcess) {
+        synchronized(processLock) {
+            active.stopRequested = true
+            if (activeProcess === active) activeProcess = null
+        }
+        try {
+            active.process.destroy()
+        } catch (error: Exception) {
+            logger.logError(this, "Could not stop Klipper after a startup failure", error)
         }
     }
 
@@ -347,12 +369,35 @@ class KlipperRepositoryImpl(
 
     private fun ensureInitialPrinterConfiguration() {
         ensurePrinterDataDirectories()
+        val starterTemplate = """
+            # Miracle Klipper printer configuration template.
+            # Add a printer-specific [mcu] section and a complete [printer] section before starting Klipper.
+            # Select a config from the official Klipper config examples that matches your printer and control board.
+            # These Moonraker features are included as baseline; no printer pins or kinematics are guessed.
+
+            [virtual_sdcard]
+            path: /var/lib/miracle/printer_data/gcodes
+
+            [pause_resume]
+
+            [display_status]
+        """.trimIndent() + "\n"
+
         if (!configFile.exists()) {
-            configFile.writeText(
-                "# Miracle Klipper printer configuration template.\n" +
-                    "# Add a printer-specific [mcu] section and a complete [printer] section before starting Klipper.\n" +
-                    "# Select a configuration that matches your printer and control board.\n"
-            )
+            configFile.writeText(starterTemplate)
+            return
+        }
+
+        // Upgrade only the original comments-only starter. Never replace a user's
+        // partially configured or printer-specific file.
+        val current = configFile.readText()
+        val containsOnlyComments = current.lineSequence().all { line ->
+            line.isBlank() || line.trimStart().startsWith("#")
+        }
+        if (containsOnlyComments &&
+            current.contains("# Miracle Klipper printer configuration template.")
+        ) {
+            configFile.writeText(starterTemplate)
         }
     }
 
@@ -362,11 +407,12 @@ class KlipperRepositoryImpl(
     }
 
     private fun createProotProcess(command: List<String>, workingDirectory: String): ProcessBuilder {
-        val bootstrapBin = File(context.filesDir, "bootstrap/bin")
-        val proot = File(bootstrapBin, "proot")
-        if (!File(rootfsDirectory, "usr/bin/env").isFile || !proot.isFile) {
-            throw IOException("The Debian 13 environment or Octo4a PRoot tools are unavailable")
+        val bootstrapBin = ProotRuntime.nativeDirectory(context)
+        val proot = ProotRuntime.proot(context)
+        if (!File(rootfsDirectory, "usr/bin/env").isFile) {
+            throw IOException("The Debian 13 environment is unavailable")
         }
+        ProotRuntime.requireAvailable(context)
         val temporaryDirectory = File(baseDirectory, "tmp")
         val linkDirectory = File(rootfsDirectory, ".l2s")
         ensureDirectoryExists(temporaryDirectory)
@@ -379,7 +425,7 @@ class KlipperRepositoryImpl(
             .forEach { args.addAll(listOf("-b", it)) }
         val serialPipe = File(context.filesDir, "serialpipe")
         if (serialPipe.exists()) args.addAll(listOf("-b", "${serialPipe.absolutePath}:/dev/ttyOcto4a"))
-        val fakeProcStat = File(context.filesDir, "bootstrap/fake_proc_stat")
+        val fakeProcStat = ProotRuntime.fakeProcStat(context)
         if (fakeProcStat.isFile) args.addAll(listOf("-b", "${fakeProcStat.absolutePath}:/proc/stat"))
         args.addAll(listOf("-L", "--link2symlink", "-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
         args.addAll(listOf("-w", workingDirectory, "/usr/bin/env"))
@@ -398,11 +444,13 @@ class KlipperRepositoryImpl(
         args.addAll(command)
 
         val builder = ProcessBuilder(args).directory(bootstrapBin).redirectErrorStream(true)
+        builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
         builder.environment()["PROOT_L2S_DIR"] = linkDirectory.absolutePath
         builder.environment()["PWD"] = bootstrapBin.absolutePath
         builder.environment().remove("LD_PRELOAD")
         builder.environment().remove("LD_LIBRARY_PATH")
+        ProotRuntime.applyLoader(builder, context)
         return builder
     }
 

@@ -2,12 +2,16 @@ package com.octo4a.ui
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
+import java.io.File
 import androidx.appcompat.app.AppCompatActivity
 import com.octo4a.R
 import com.octo4a.service.OctoPrintService
@@ -78,6 +82,17 @@ class InstallationActivity : AppCompatActivity() {
         seeLogsButton.setOnClickListener {
             val logsFragment = TerminalSheetDialog()
             logsFragment.show(supportFragmentManager, logsFragment.tag)
+        }
+        copyDebianLogButton.setOnClickListener {
+            try {
+                val logFile = File(filesDir, "miracle-klipper/logs/debian-install.log")
+                val logText = if (logFile.isFile) logFile.readText() else "Journal Debian introuvable."
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Miracle Klipper Debian log", logText))
+                Toast.makeText(this, "Journal copié. Colle-le dans le chat.", Toast.LENGTH_LONG).show()
+            } catch (error: Exception) {
+                Toast.makeText(this, "Impossible de lire le journal : ${error.message}", Toast.LENGTH_LONG).show()
+            }
         }
         clearDataAndRestart.setOnClickListener{
             try {

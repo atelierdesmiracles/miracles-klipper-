@@ -31,17 +31,16 @@ class StatusViewModel(context: Application,
         viewModelScope.launch {
             withIO {
                 try {
-                    val newestRelease = githubRepository.getNewestRelease("feelfreelinux/octo4a")
+                    val newestRelease = githubRepository.getNewestRelease(UPDATE_REPOSITORY)
 
                     val app = getApplication<Octo4aApplication>()
                     val pInfo: PackageInfo = app.packageManager.getPackageInfo(app.packageName, 0)
-                    val version = pInfo.versionName
-                    if (SemVer.parse(version) < SemVer.parse(newestRelease.tagName)) {
-                        // New version available, check if is built already
-                        if (newestRelease.assets.any { it.name.contains("bootstrap") }
-                            && newestRelease.assets.any { it.name.contains(".apk") }) {
-                            updateAvailable.postValue(newestRelease)
-                        }
+                    val installed = SemVer.parse(pInfo.versionName.removePrefix("v"))
+                    val latest = SemVer.parse(newestRelease.tagName.removePrefix("v"))
+                    // Miracle Klipper releases only ship the APK (the Debian bootstrap is
+                    // downloaded at install time), so only an APK asset is required.
+                    if (installed < latest && newestRelease.assets.any { it.name.endsWith(".apk") }) {
+                        updateAvailable.postValue(newestRelease)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -60,5 +59,10 @@ class StatusViewModel(context: Application,
 
     fun stopServer() {
         octoPrintHandlerRepository.stopOctoPrint()
+    }
+
+    private companion object {
+        // Must point at this project's releases, never at upstream Octo4a.
+        const val UPDATE_REPOSITORY = "atelierdesmiracles/miracles-klipper-"
     }
 }

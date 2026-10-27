@@ -10,12 +10,17 @@ android {
     compileSdk = 28
     buildToolsVersion = "30.0.3"
     defaultConfig {
-        applicationId = "com.octo4a"
+        applicationId = "fr.atelierdesmiracles.miracleklipper"
         minSdk = 26
         targetSdk = 28
-        versionName = "0.1.0-alpha.1"
-        versionCode = 2001001
+        versionName = "0.2.0-alpha.1"
+        versionCode = 2002001
         multiDexEnabled = true
+        // Own Bugsnag project key, provided at build time. Without it, crash reporting stays off
+        // (the placeholder below is intentionally invalid) instead of reporting to upstream Octo4a.
+        manifestPlaceholders["bugsnagApiKey"] =
+            System.getenv("MIRACLE_BUGSNAG_API_KEY")?.takeIf { it.isNotBlank() }
+                ?: "00000000000000000000000000000000"
 
         ndk {
             abiFilters.add("x86")
@@ -29,6 +34,8 @@ android {
     packagingOptions {
         jniLibs {
             pickFirsts += setOf("**/*.so")
+            // PRoot must be extracted into nativeLibraryDir: Android app filesDir is noexec.
+            useLegacyPackaging = true
         }
         resources {
             pickFirsts += setOf("META-INF/INDEX.LIST", "META-INF/io.netty.versions.properties")
@@ -126,6 +133,12 @@ dependencies {
     implementation("io.ktor:ktor-client-android:$ktorVersion")
     implementation("io.ktor:ktor-client-gson:$ktorVersion")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+
+    // Native Android-side extraction of the Debian 13 tar.xz rootfs (no Octo4a minitar).
+    implementation("org.apache.commons:commons-compress:1.21")
+    implementation("org.tukaani:xz:1.9")
+    // Pin older Java 8-compatible Apache Commons artifacts to avoid D8 crashes with newer bytecode.
+    implementation("org.apache.commons:commons-lang3:3.12.0")
 
     // Bugsnag bug reporting
     implementation("com.bugsnag:bugsnag-android:5.12.0")

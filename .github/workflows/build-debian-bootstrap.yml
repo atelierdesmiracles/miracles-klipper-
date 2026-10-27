@@ -1,0 +1,157 @@
+name: Build Miracle Klipper Debian 13 bootstrap
+
+on:
+  push:
+    branches:
+      - miracle-klipper-next
+    paths:
+      - ".github/workflows/build-debian-bootstrap.yml"
+      - "scripts/bootstrap/**"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: miracle-klipper-debian-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  build-bootstrap:
+    name: Build Debian 13 bootstrap (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            abi: aarch64
+            elf_machine: AArch64
+            rootfs_url: https://github.com/termux/proot-distro/releases/download/v4.26.0/debian-trixie-aarch64-pd-v4.26.0.tar.xz
+            rootfs_sha256: cda75346f2c9e09e8a802665745b5a7e2bd6d8584dbf1c86c8c57ef54c4e2d3c
+            proot_url: https://github.com/ahmed-alnassif/proot/releases/download/v26.10.08-a179d3e/proot-aarch64.zip
+            proot_sha256: d621d71fb68bf07accbada37ffc4208cf4a963eed70916ee68f848cbd9555cc3
+          - arch: x86_64
+            abi: x86_64
+            elf_machine: Advanced Micro Devices X86-64
+            rootfs_url: https://github.com/termux/proot-distro/releases/download/v4.26.0/debian-trixie-x86_64-pd-v4.26.0.tar.xz
+            rootfs_sha256: e2edc15363395936cf0cba8c440a108458dba58fb496d3d962909d7a8d9777ae
+            proot_url: https://github.com/ahmed-alnassif/proot/releases/download/v26.10.08-a179d3e/proot-x86_64.zip
+            proot_sha256: ef06aeb47f5bb9c96bb9019fe8efa320ed199151020428b2335af6035c05f166
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download and verify Debian 13 rootfs
+        shell: bash
+        env:
+          ROOTFS_URL: ${{ matrix.rootfs_url }}
+          ROOTFS_SHA256: ${{ matrix.rootfs_sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/bootstrap/rootfs build/proot
+          curl --fail --location --retry 3 --connect-timeout 20 "$ROOTFS_URL" -o build/bootstrap/rootfs/debian-trixie.tar.xz
+          echo "$ROOTFS_SHA256  build/bootstrap/rootfs/debian-trixie.tar.xz" | sha256sum --check -
+
+      - name: Download and verify Android PRoot
+        shell: bash
+        env:
+          PROOT_URL: ${{ matrix.proot_url }}
+          PROOT_SHA256: ${{ matrix.proot_sha256 }}
+          EXPECTED_ELF_MACHINE: ${{ matrix.elf_machine }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 20 "$PROOT_URL" -o build/proot/proot.zip
+          echo "$PROOT_SHA256  build/proot/proot.zip" | sha256sum --check -
+          mkdir -p build/proot/extracted
+          unzip -q build/proot/proot.zip -d build/proot/extracted
+          echo "PRoot archive contents, including symlinks:"
+          ls -laR build/proot/extracted
+          # Fail the release build if an incompatible GNU/Linux ELF slips into the Android bundle.
+          # Android 64-bit executables must target the selected CPU and must not request glibc's loader.
+          actual_machine="$(readelf -h build/proot/extracted/proot | sed -n 's/^[[:space:]]*Machine:[[:space:]]*//p')"
+          test "$actual_machine" = "$EXPECTED_ELF_MACHINE" || { echo "Wrong PRoot ELF machine: $actual_machine (expected $EXPECTED_ELF_MACHINE)"; exit 1; }
+          interpreter="$(readelf -l build/proot/extracted/proot | awk -F'[][]' '/Requesting program interpreter/ { sub(/^.*: /, "", $2); print $2 }')"
+          echo "Validated PRoot ELF machine: $actual_machine"
+          echo "Validated PRoot ELF interpreter: ${interpreter:-static/no interpreter}"
+          if [ -n "$interpreter" ] && [ "$interpreter" != "/system/bin/linker64" ]; then
+            echo "Incompatible PRoot interpreter: $interpreter (expected Android /system/bin/linker64 or a static binary)"
+            exit 1
+          fi
+          # Upstream ZIPs can contain symlinks; dereference them because Java's
+          # ZipInputStream on Android cannot recreate filesystem symlinks.
+          test -f build/proot/extracted/proot
+          test -f build/proot/extracted/loader
+          mkdir -p build/bootstrap/bin build/bootstrap/libexec/proot
+          install -m 0755 build/proot/extracted/proot build/bootstrap/bin/proot
+          install -m 0755 build/proot/extracted/loader build/bootstrap/libexec/proot/loader
+          if [ -f build/proot/extracted/loader-m32 ]; then
+            install -m 0755 build/proot/extracted/loader-m32 build/bootstrap/libexec/proot/loader-m32
+          fi
+          test -x build/bootstrap/bin/proot
+
+      - name: Add bootstrap metadata and setup helper
+        shell: bash
+        env:
+          BOOTSTRAP_ARCH: ${{ matrix.arch }}
+          BOOTSTRAP_ABI: ${{ matrix.abi }}
+          ROOTFS_SHA256: ${{ matrix.rootfs_sha256 }}
+          PROOT_SHA256: ${{ matrix.proot_sha256 }}
+        run: |
+          set -euo pipefail
+          cat > build/bootstrap/bootstrap-manifest.txt <<EOF
+          name=Miracle Klipper Debian Bootstrap
+          version=13-trixie
+          architecture=$BOOTSTRAP_ARCH
+          android_abi=$BOOTSTRAP_ABI
+          rootfs= rootfs/debian-trixie.tar.xz
+          rootfs_sha256=$ROOTFS_SHA256
+          proot_sha256=$PROOT_SHA256
+          source=atelierdesmiracles/miracles-klipper-
+          EOF
+          cat > build/bootstrap/README.txt <<'EOF'
+          Miracle Klipper Debian 13 (Trixie) bootstrap.
+          Contains an Android-compatible PRoot executable and loader plus the verified Debian rootfs archive.
+          This bundle does not contain OctoPrint or start OctoPrint.
+          The application extracts the rootfs into private app storage and installs Klipper, Moonraker and Mainsail.
+          EOF
+          (cd build/bootstrap && zip -qr "../miracle-klipper-debian13-${BOOTSTRAP_ARCH}.zip" .)
+          sha256sum "build/miracle-klipper-debian13-${BOOTSTRAP_ARCH}.zip" > "build/miracle-klipper-debian13-${BOOTSTRAP_ARCH}.zip.sha256"
+
+      - name: Upload bootstrap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miracle-klipper-debian13-${{ matrix.arch }}
+          path: |
+            build/miracle-klipper-debian13-${{ matrix.arch }}.zip
+            build/miracle-klipper-debian13-${{ matrix.arch }}.zip.sha256
+          if-no-files-found: error
+
+  publish:
+    name: Publish downloadable bootstrap bundle
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build-bootstrap
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: miracle-klipper-debian13-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish stable bootstrap release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: miracle-klipper-debian13
+          name: Miracle Klipper Debian 13 Bootstrap
+          target_commitish: ${{ github.sha }}
+          make_latest: false
+          fail_on_unmatched_files: true
+          body: |
+            Dedicated Debian 13 Trixie bootstrap for Miracle Klipper.
+            Includes Android PRoot and its loader plus the verified Debian root filesystem.
+            No OctoPrint is bundled or launched.
+          files: |
+            release-assets/miracle-klipper-debian13-arm64.zip
+            release-assets/miracle-klipper-debian13-arm64.zip.sha256
+            release-assets/miracle-klipper-debian13-x86_64.zip
+            release-assets/miracle-klipper-debian13-x86_64.zip.sha256

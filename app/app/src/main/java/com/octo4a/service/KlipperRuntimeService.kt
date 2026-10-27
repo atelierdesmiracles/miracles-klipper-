@@ -70,6 +70,13 @@ class KlipperRuntimeService : LifecycleService() {
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
+                        // A start can fail after the child process has been created.
+                        // Always ask the repository to terminate any partially-started process.
+                        try {
+                            klipper.stop()
+                        } catch (_: Exception) {
+                            // Preserve the original startup failure state.
+                        }
                         withContext(Dispatchers.Main) {
                             stopForeground(true)
                             stopSelf()

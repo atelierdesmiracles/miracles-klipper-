@@ -1,6 +1,7 @@
 package com.octo4a.repository
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonParser
@@ -14,6 +15,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -84,7 +87,8 @@ class MoonrakerRepositoryImpl(
     private val logger: LoggerRepository
 ) : MoonrakerRepository {
     private val baseDirectory = File(context.filesDir, "miracle-klipper")
-    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-arm64")
+    private val environmentArchitecture = LinuxArchitecture.resolve(context)
+    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-$environmentArchitecture")
     private val sharedDirectory = File(baseDirectory, "shared")
     private val softwareDirectory = File(sharedDirectory, "software")
     private val printerDataDirectory = File(sharedDirectory, "printer_data")
@@ -118,7 +122,7 @@ class MoonrakerRepositoryImpl(
         !MoonrakerConfigurationValidator.isSafeLocalConfiguration(readConfiguration()) ->
             MoonrakerProgress(
                 MoonrakerStage.NeedsConfiguration,
-                "Moonraker config must use loopback-only access and the Klipper socket",
+                "Moonraker config must use loopback-only access, the Klipper socket, and the Mainsail/Fluidd proxy origin",
                 manifest.revision
             )
         else -> MoonrakerProgress(
@@ -266,7 +270,7 @@ class MoonrakerRepositoryImpl(
         if (!isInstalled) throw IOException("Install Moonraker before starting it")
         migrateLegacyConfiguration()
         if (!MoonrakerConfigurationValidator.isSafeLocalConfiguration(readConfiguration())) {
-            val message = "Moonraker config must bind to loopback and use the Nginx proxy settings"
+            val message = "Moonraker config must bind to loopback and allow the local web interface origin on port 8080"
             state.value = MoonrakerProgress(MoonrakerStage.NeedsConfiguration, message, manifest.revision)
             throw IOException(message)
         }
@@ -396,8 +400,10 @@ class MoonrakerRepositoryImpl(
                     " fc00::/7\n" +
                     " fe80::/10\n" +
                     "cors_domains:\n" +
-                    " http://127.0.0.1:5000\n" +
-                    " http://localhost:5000\n\n" +
+                    " http://127.0.0.1:8080\n" +
+                    " http://localhost:8080\n" +
+                    " http://*.local:8080\n" +
+                    " http://*.lan:8080\n\n" +
                     "[machine]\n" +
                     "provider: none\n" +
                     "shutdown_action: halt\n\n" +
@@ -428,6 +434,8 @@ class MoonrakerRepositoryImpl(
         val migrated = current
             .replace("use_xheaders: False", "use_xheaders: True")
             .replace(oldTrustedClients, newTrustedClients)
+            .replace("http://127.0.0.1:5000", "http://127.0.0.1:8080")
+            .replace("http://localhost:5000", "http://localhost:8080")
         if (MoonrakerConfigurationValidator.isSafeLocalConfiguration(migrated)) {
             configFile.writeText(migrated)
         }
@@ -450,6 +458,10 @@ class MoonrakerRepositoryImpl(
         }
         try {
             state.value = MoonrakerProgress(MoonrakerStage.Installing, "Installing Moonraker system dependencies", manifest.revision)
+            // Repair old PRoot link2symlink entries from installations created before
+            // rootfs activation rewrote staging paths. A stale target can make dpkg
+            // fail to create /var/lib/dpkg/status-old with EPERM on non-root Android.
+            repairMovedRootfsSymlinks()
             runInRootfs(
                 listOf("/usr/bin/apt-get", "-o", "Dpkg::Use-Pty=0", "update"),
                 "Refresh Debian package metadata"
@@ -477,6 +489,31 @@ class MoonrakerRepositoryImpl(
                 logger.log(this, LogType.BOOTSTRAP) { "Could not remove temporary policy-rc.d" }
             }
         }
+    }
+
+    private fun repairMovedRootfsSymlinks() {
+        val oldRootPath = File(baseDirectory, "staging/debian/rootfs").absolutePath
+        val newRootPath = rootfsDirectory.absolutePath
+        if (!rootfsDirectory.isDirectory) return
+
+        fun visit(directory: File) {
+            val children = directory.listFiles()
+                ?: throw IOException("Could not inspect Debian directory ${directory.absolutePath}")
+            for (child in children) {
+                val path = child.toPath()
+                if (Files.isSymbolicLink(path)) {
+                    val target = Files.readSymbolicLink(path).toString()
+                    if (target.contains(oldRootPath)) {
+                        val rewrittenTarget = target.replace(oldRootPath, newRootPath)
+                        Files.delete(path)
+                        Files.createSymbolicLink(path, Paths.get(rewrittenTarget))
+                    }
+                } else if (child.isDirectory) {
+                    visit(child)
+                }
+            }
+        }
+        visit(rootfsDirectory)
     }
 
     private fun restoreDebconfFrontendIfMissing() {
@@ -558,11 +595,12 @@ class MoonrakerRepositoryImpl(
         guestEnvironment: Map<String, String> = emptyMap(),
         useLink2Symlink: Boolean = true
     ): ProcessBuilder {
-        val bootstrapBin = File(context.filesDir, "bootstrap/bin")
-        val proot = File(bootstrapBin, "proot")
-        if (!File(rootfsDirectory, "usr/bin/env").isFile || !proot.isFile) {
-            throw IOException("The Debian 13 environment or Octo4a PRoot tools are unavailable")
+        val bootstrapBin = ProotRuntime.nativeDirectory(context)
+        val proot = ProotRuntime.proot(context)
+        if (!File(rootfsDirectory, "usr/bin/env").isFile) {
+            throw IOException("The Debian 13 environment is unavailable")
         }
+        ProotRuntime.requireAvailable(context)
         val temporaryDirectory = File(baseDirectory, "tmp")
         val linkDirectory = File(rootfsDirectory, ".l2s")
         ensureDirectoryExists(temporaryDirectory)
@@ -575,7 +613,7 @@ class MoonrakerRepositoryImpl(
             .forEach { args.addAll(listOf("-b", it)) }
         val serialPipe = File(context.filesDir, "serialpipe")
         if (serialPipe.exists()) args.addAll(listOf("-b", "${serialPipe.absolutePath}:/dev/ttyOcto4a"))
-        val fakeProcStat = File(context.filesDir, "bootstrap/fake_proc_stat")
+        val fakeProcStat = ProotRuntime.fakeProcStat(context)
         if (fakeProcStat.isFile) args.addAll(listOf("-b", "${fakeProcStat.absolutePath}:/proc/stat"))
         args.add("-L")
         if (useLink2Symlink) args.add("--link2symlink")
@@ -600,11 +638,13 @@ class MoonrakerRepositoryImpl(
         args.addAll(command)
 
         val builder = ProcessBuilder(args).directory(bootstrapBin).redirectErrorStream(true)
+        builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
         builder.environment()["PROOT_L2S_DIR"] = linkDirectory.absolutePath
         builder.environment()["PWD"] = bootstrapBin.absolutePath
         builder.environment().remove("LD_PRELOAD")
         builder.environment().remove("LD_LIBRARY_PATH")
+        ProotRuntime.applyLoader(builder, context)
         return builder
     }
 
@@ -904,8 +944,10 @@ internal object MoonrakerConfigurationValidator {
                 ) else setOf("127.0.0.0/8", "::1/128")
                 ) &&
             auth.listValues("cors_domains") == setOf(
-                "http://127.0.0.1:5000",
-                "http://localhost:5000"
+                "http://127.0.0.1:8080",
+                "http://localhost:8080",
+                "http://*.local:8080",
+                "http://*.lan:8080"
             )
     }
 

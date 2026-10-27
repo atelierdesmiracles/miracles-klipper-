@@ -5,7 +5,7 @@
 #include "util.h"
 
 #define HAVE_openpty
-int openpty(int *amaster, int *aslave, char *name, struct termios *termp, struct winsize *winp)
+int openpty(int *amaster, int *aslave, char *name, const struct termios *termp, const struct winsize *winp)
 {
        char buf[512];
        int master, slave;

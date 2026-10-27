@@ -1,0 +1,46 @@
+name: Build Miracle Klipper APK with Android-native PRoot
+
+on:
+  push:
+    branches:
+      - miracle-klipper-next
+    paths:
+      - "app/app/src/main/java/com/octo4a/repository/LinuxEnvironmentRepository.kt"
+      - "app/app/build.gradle.kts"
+      - ".github/workflows/build-native-proot-debug.yml"
+      - "scripts/fetch-proot.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    name: Build universal debug APK with Android-native PRoot
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+
+      - name: Fetch and verify Android PRoot libraries
+        run: bash scripts/fetch-proot.sh
+
+      - name: Build debug APK
+        working-directory: app
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: miracle-klipper-debug
+          path: app/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

@@ -16,8 +16,13 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.net.URL
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.security.MessageDigest
+import java.util.zip.ZipInputStream
 import javax.net.ssl.HttpsURLConnection
 
 enum class LinuxEnvironmentStage {
@@ -53,8 +58,14 @@ internal data class LinuxEnvironmentManifest(
         require(schemaVersion == 1) { "Unsupported Linux environment manifest" }
         require(distribution.name == "Debian" && distribution.version == "13" &&
             distribution.codename == "trixie") { "Only Debian 13 Trixie is supported" }
-        require(distribution.architecture == "arm64" &&
-            distribution.androidAbi == "arm64-v8a") { "Unsupported Debian architecture" }
+        require(
+            (distribution.architecture == "arm64" && distribution.androidAbi == "arm64-v8a") ||
+                (distribution.architecture == "x86_64" && distribution.androidAbi == "x86_64")
+        ) { "Unsupported Debian architecture" }
+        require(
+            (distribution.architecture == "arm64" && rootfs.url.contains("debian-trixie-aarch64-")) ||
+                (distribution.architecture == "x86_64" && rootfs.url.contains("debian-trixie-x86_64-"))
+        ) { "Debian rootfs architecture does not match the Android ABI" }
         require(rootfs.source == "termux/proot-distro")
         require(rootfs.url.startsWith("https://")) { "The Debian rootfs must use HTTPS" }
         require(rootfs.sha256.matches(Regex("[a-fA-F0-9]{64}"))) {
@@ -119,7 +130,8 @@ class LinuxEnvironmentRepositoryImpl(
 ) : LinuxEnvironmentRepository {
     private val baseDirectory = File(context.filesDir, "miracle-klipper")
     private val stateDirectory = File(baseDirectory, "state")
-    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-arm64")
+    private val environmentArchitecture = LinuxArchitecture.resolve(context)
+    private val rootfsDirectory = File(baseDirectory, "linux/debian-trixie-$environmentArchitecture")
     private val sharedDirectory = File(baseDirectory, "shared")
     private val stagingDirectory = File(baseDirectory, "staging/debian")
     private val logFile = File(baseDirectory, "logs/debian-install.log")
@@ -141,28 +153,39 @@ class LinuxEnvironmentRepositoryImpl(
                 readExpectedHashOrEmpty(), ignoreCase = true
             ) && File(rootfsDirectory, "usr/bin/env").isFile &&
                 File(rootfsDirectory, "usr/bin/apt-get").isFile &&
-                File(rootfsDirectory, "usr/bin/python3").exists()
+                File(rootfsDirectory, "usr/bin/python3").exists() &&
+                File(context.applicationInfo.nativeLibraryDir, "libproot.so").canExecute() &&
+                File(context.applicationInfo.nativeLibraryDir, "libproot-loader.so").canExecute() &&
+                File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz").isFile &&
+                File(baseDirectory, "bootstrap/android-proot-version").let {
+                    it.isFile && it.readText().trim() in setOf(
+                        "android-bionic-proot-v3-android-refresh"
+                    )
+                }
         }
 
     override suspend fun install() = withContext(Dispatchers.IO) {
         installMutex.withLock {
-            if (isReady) {
-                state.value = LinuxEnvironmentProgress(
-                    LinuxEnvironmentStage.Ready,
-                    message = "Debian 13 is already installed"
-                )
-                return@withLock
-            }
-
             try {
                 ensureSupportedArchitecture()
                 val manifest = loadManifest()
                 manifest.validate()
-                ensureBootstrapTools()
+
+                // Refresh old bootstrap assets independently of the Debian rootfs.
+                // This avoids reinstalling Debian just to replace a PRoot binary.
+                ensureBootstrapTools(manifest.rootfs)
+                if (isReady) {
+                    state.value = LinuxEnvironmentProgress(
+                        LinuxEnvironmentStage.Ready,
+                        message = "Debian 13 is already installed"
+                    )
+                    return@withLock
+                }
+
                 ensureStorage(manifest.minimumFreeStorageBytes)
 
-                if (stagingDirectory.exists() && !stagingDirectory.deleteRecursively()) {
-                    throw IOException("Could not remove the incomplete Debian installation")
+                if (stagingDirectory.exists() && !deleteTreeForRetry(stagingDirectory)) {
+                    throw IOException("Could not remove the incomplete Debian installation; close any active installer process and retry")
                 }
                 ensureDirectoryExists(stagingDirectory)
                 ensureDirectoryExists(sharedDirectory)
@@ -188,14 +211,14 @@ class LinuxEnvironmentRepositoryImpl(
                 verifyEnvironment(stagedRootfs)
                 activateRootfs(stagedRootfs, manifest.rootfs.sha256)
 
-                if (stagingDirectory.exists()) stagingDirectory.deleteRecursively()
+                if (stagingDirectory.exists()) deleteTreeForRetry(stagingDirectory)
                 state.value = LinuxEnvironmentProgress(
                     LinuxEnvironmentStage.Ready,
                     100,
                     "Debian 13 Trixie and its tools are ready"
                 )
             } catch (cancelled: CancellationException) {
-                if (stagingDirectory.exists()) stagingDirectory.deleteRecursively()
+                if (stagingDirectory.exists()) deleteTreeForRetry(stagingDirectory)
                 state.value = LinuxEnvironmentProgress(
                     LinuxEnvironmentStage.Failed,
                     message = "Debian installation interrupted. Tap again to retry."
@@ -205,7 +228,7 @@ class LinuxEnvironmentRepositoryImpl(
                     "Debian installation interrupted", cancelled)
                 throw cancelled
             } catch (error: Throwable) {
-                if (stagingDirectory.exists()) stagingDirectory.deleteRecursively()
+                if (stagingDirectory.exists()) deleteTreeForRetry(stagingDirectory)
                 val details = describeFailure(error)
                 val message = "Debian environment installation failed: $details"
                 state.value = LinuxEnvironmentProgress(
@@ -220,14 +243,35 @@ class LinuxEnvironmentRepositoryImpl(
         }
     }
 
+    /**
+     * Debian packages can leave root-owned-looking or read-only paths in a failed staging tree.
+     * Make the app-owned tree writable before retrying deletion so a failed install can recover.
+     */
+    private fun deleteTreeForRetry(target: File): Boolean {
+        if (!target.exists()) return true
+        if (target.isDirectory) {
+            target.listFiles()?.forEach { child ->
+                if (!deleteTreeForRetry(child)) return false
+            }
+        }
+        target.setWritable(true, false)
+        target.setExecutable(true, false)
+        return target.delete() || !target.exists()
+    }
+
     private fun ensureSupportedArchitecture() {
-        if (Build.SUPPORTED_ABIS.none { it == "arm64-v8a" }) {
-            throw IOException("This Debian environment currently requires an ARM64 Android device")
+        if (Build.SUPPORTED_ABIS.none { it == "arm64-v8a" || it == "x86_64" }) {
+            throw IOException("Miracle Klipper requires an ARM64 or x86_64 Android device")
         }
     }
 
     private fun loadManifest(): LinuxEnvironmentManifest {
-        return context.assets.open("linux-environment.json").bufferedReader().use { reader ->
+        val assetName = if (environmentArchitecture == LinuxArchitecture.X86_64) {
+            "linux-environment-x86_64.json"
+        } else {
+            "linux-environment.json"
+        }
+        return context.assets.open(assetName).bufferedReader().use { reader ->
             Gson().fromJson(reader, LinuxEnvironmentManifest::class.java)
                 ?: throw IOException("The Debian environment manifest is empty")
         }
@@ -239,15 +283,103 @@ class LinuxEnvironmentRepositoryImpl(
         ""
     }
 
-    private fun ensureBootstrapTools() {
-        val bootstrap = File(context.filesDir, "bootstrap")
-        val minitar = File(bootstrap, "bin/minitar")
-        val proot = File(bootstrap, "bin/proot")
-        if (!File(bootstrap, "bootstrap").isDirectory || !minitar.isFile || !proot.isFile) {
-            throw IOException("Install the Octo4a bootstrap before preparing Debian")
+    private fun ensureBootstrapTools(rootfs: LinuxRootfs) {
+        val bootstrapDirectory = File(baseDirectory, "bootstrap")
+        val proot = File(bootstrapDirectory, "bin/proot")
+        val loader = File(bootstrapDirectory, "libexec/proot")
+        val bundledRootfs = File(bootstrapDirectory, "rootfs/debian-trixie.tar.xz")
+        val prootVersion = File(bootstrapDirectory, "android-proot-version")
+        if (proot.isFile && proot.canExecute() && loader.isDirectory &&
+            !loader.listFiles().isNullOrEmpty() && bundledRootfs.isFile &&
+            prootVersion.isFile && prootVersion.readText().trim() == "android-bionic-proot-v3-android-refresh") return
+        val arch = when (environmentArchitecture) { LinuxArchitecture.ARM64 -> "arm64"; LinuxArchitecture.X86_64 -> "x86_64"; else -> throw IOException("Unsupported Miracle Klipper bootstrap architecture: $environmentArchitecture") }
+        val baseUrl = "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13"
+        val bundleName = "miracle-klipper-debian13-$arch.zip"
+        val staging = File(baseDirectory, "staging/bootstrap-download")
+        if (staging.exists() && !staging.deleteRecursively()) throw IOException("Could not clear the previous bootstrap download")
+        ensureDirectoryExists(staging)
+        val archive = File(staging, bundleName)
+        downloadHttps("$baseUrl/$bundleName", archive)
+        val checksumFile = File(staging, "$bundleName.sha256")
+        downloadHttps("$baseUrl/$bundleName.sha256", checksumFile)
+        val expectedBundleHash = checksumFile.readText().trim().split(Regex("\\s+")).firstOrNull() ?: throw IOException("Miracle Klipper bootstrap checksum file is empty")
+        if (!expectedBundleHash.matches(Regex("[a-fA-F0-9]{64}"))) throw IOException("Miracle Klipper bootstrap checksum file is invalid")
+        val bundleDigest = MessageDigest.getInstance("SHA-256")
+        archive.inputStream().use { input -> val buffer = ByteArray(DEFAULT_BUFFER_SIZE); while (true) { val count = input.read(buffer); if (count < 0) break; bundleDigest.update(buffer, 0, count) } }
+        val actualBundleHash = bundleDigest.digest().joinToString("") { "%02x".format(it) }
+        if (!actualBundleHash.equals(expectedBundleHash, ignoreCase = true)) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap SHA-256 verification failed") }
+        val extracted = File(staging, "extracted")
+        ensureDirectoryExists(extracted)
+        ZipInputStream(archive.inputStream().buffered()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                val normalized = entry.name.replace('\\', '/')
+                if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) throw IOException("Unsafe path in Miracle Klipper bootstrap archive")
+                val target = File(extracted, normalized).canonicalFile
+                val prefix = extracted.canonicalPath + File.separator
+                if (target != extracted.canonicalFile && !target.path.startsWith(prefix)) throw IOException("Bootstrap archive entry escapes staging directory")
+                if (entry.isDirectory) ensureDirectoryExists(target) else { ensureDirectoryExists(target.parentFile!!); FileOutputStream(target).use { output -> zip.copyTo(output) } }
+                zip.closeEntry()
+            }
         }
+        val manifest = File(extracted, "bootstrap-manifest.txt")
+        val manifestText = if (manifest.isFile) manifest.readText() else ""
+        if (!manifestText.contains("version=13-trixie") || !manifestText.contains("architecture=$arch") || !manifestText.contains("rootfs_sha256=")) { staging.deleteRecursively(); throw IOException("Miracle Klipper bootstrap metadata does not match this device") }
+        val bundledProot = File(extracted, "bin/proot")
+        val bundledLoader = File(extracted, "libexec/proot")
+        val extractedRootfs = File(extracted, "rootfs/debian-trixie.tar.xz")
+        if (!bundledProot.isFile || !bundledLoader.isDirectory || bundledLoader.listFiles().isNullOrEmpty() || !extractedRootfs.isFile) {
+            staging.deleteRecursively()
+            throw IOException("Miracle Klipper bootstrap bundle is incomplete")
+        }
+
+        // The release bundle already contains the Android/Bionic PRoot binary and its
+        // loader sidecars, all covered by the verified bundle SHA-256. Use these pinned
+        // assets directly instead of downloading a second, floating "latest" binary.
+        if (bootstrapDirectory.exists() && !bootstrapDirectory.deleteRecursively()) {
+            throw IOException("Could not replace the old bootstrap directory")
+        }
+        ensureDirectoryExists(File(bootstrapDirectory, "bin"))
+        ensureDirectoryExists(File(bootstrapDirectory, "libexec"))
+        ensureDirectoryExists(File(bootstrapDirectory, "rootfs"))
+        ensureDirectoryExists(loader)
+
+        bundledProot.copyTo(proot, overwrite = true)
+        if (!proot.setExecutable(true, false)) {
+            throw IOException("Could not mark bundled Android PRoot executable")
+        }
+
+        val bundledLoaderFiles = bundledLoader.listFiles()
+            ?: throw IOException("Could not read bundled PRoot loader sidecars")
+        if (bundledLoaderFiles.none { it.isFile && it.name == "loader" }) {
+            throw IOException("Miracle Klipper bootstrap bundle is missing the PRoot loader")
+        }
+        for (sidecar in bundledLoaderFiles) {
+            if (!sidecar.isFile) continue
+            val destination = File(loader, sidecar.name)
+            sidecar.copyTo(destination, overwrite = true)
+            if (!destination.setExecutable(true, false)) {
+                throw IOException("Could not mark PRoot sidecar executable: ${sidecar.name}")
+            }
+        }
+
+        extractedRootfs.copyTo(bundledRootfs, overwrite = true)
+        manifest.copyTo(File(bootstrapDirectory, "bootstrap-manifest.txt"), overwrite = true)
+        File(bootstrapDirectory, "android-proot-version").writeText("android-bionic-proot-v3-android-refresh")
+        staging.deleteRecursively()
     }
 
+    private fun downloadHttps(urlText: String, destination: File) {
+        val url = URL(urlText)
+        if (url.protocol != "https") throw IOException("Bootstrap downloads must use HTTPS")
+        var connection: HttpsURLConnection? = null
+        try {
+            val active = url.openConnection() as? HttpsURLConnection ?: throw IOException("Unable to open bootstrap download")
+            connection = active; active.connectTimeout = 20_000; active.readTimeout = 120_000; active.connect()
+            if (active.responseCode !in 200..299 || active.url.protocol != "https") throw IOException("Bootstrap download returned HTTP ${active.responseCode}")
+            active.inputStream.use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
+        } finally { connection?.disconnect() }
+    }
     private fun ensureStorage(requiredBytes: Long) {
         val available = context.filesDir.usableSpace
         if (available < requiredBytes) {
@@ -262,32 +394,41 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun downloadRootfs(rootfs: LinuxRootfs, destination: File) {
-        state.value = LinuxEnvironmentProgress(
-            LinuxEnvironmentStage.Downloading,
-            0,
-            "Downloading Debian 13 rootfs"
-        )
+        state.value = LinuxEnvironmentProgress(LinuxEnvironmentStage.Downloading, 0, "Preparing verified Debian 13 rootfs")
+        val bundledRootfs = File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz")
+        if (bundledRootfs.isFile) {
+            val bundledDigest = MessageDigest.getInstance("SHA-256")
+            bundledRootfs.inputStream().use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    bundledDigest.update(buffer, 0, count)
+                }
+            }
+            val bundledHash = bundledDigest.digest().joinToString("") { "%02x".format(it) }
+            // Older bootstrap bundles contain only a minimal Debian rootfs. If its hash
+            // does not match the manifest, fetch the newer preinstalled environment below.
+            if (bundledHash.equals(rootfs.sha256, ignoreCase = true)) {
+                copyAndVerifyRootfs(bundledRootfs, destination, rootfs.sha256)
+                return
+            }
+        }
         val url = URL(rootfs.url)
         if (url.protocol != "https") throw IOException("Debian downloads must use HTTPS")
-
         var connection: HttpsURLConnection? = null
         try {
-            val activeConnection = url.openConnection() as? HttpsURLConnection
-                ?: throw IOException("Unable to open the Debian rootfs download")
-            connection = activeConnection
-            activeConnection.connectTimeout = 20_000
-            activeConnection.readTimeout = 60_000
-            activeConnection.connect()
-            val response = activeConnection.responseCode
-            if (response !in 200..299 || activeConnection.url.protocol != "https") {
-                throw IOException("Debian rootfs download returned HTTP $response")
-            }
-
-            val contentLength = activeConnection.contentLength.toLong()
+            val active = url.openConnection() as? HttpsURLConnection ?: throw IOException("Unable to open the Debian rootfs download")
+            connection = active
+            active.connectTimeout = 20_000
+            active.readTimeout = 60_000
+            active.connect()
+            if (active.responseCode !in 200..299 || active.url.protocol != "https") throw IOException("Debian rootfs download returned HTTP ${active.responseCode}")
+            val contentLength = active.contentLength.toLong()
             val digest = MessageDigest.getInstance("SHA-256")
             var downloaded = 0L
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            activeConnection.inputStream.use { input ->
+            active.inputStream.use { input ->
                 FileOutputStream(destination).use { output ->
                     while (true) {
                         val count = input.read(buffer)
@@ -295,55 +436,98 @@ class LinuxEnvironmentRepositoryImpl(
                         output.write(buffer, 0, count)
                         digest.update(buffer, 0, count)
                         downloaded += count
-                        if (contentLength > 0) {
-                            val percent = ((downloaded * 100) / contentLength).toInt().coerceIn(0, 99)
-                            state.value = LinuxEnvironmentProgress(
-                                LinuxEnvironmentStage.Downloading,
-                                percent,
-                                "Downloading Debian 13 rootfs"
-                            )
-                        }
+                        if (contentLength > 0) state.value = LinuxEnvironmentProgress(LinuxEnvironmentStage.Downloading, ((downloaded * 100) / contentLength).toInt().coerceIn(0, 99), "Downloading Debian 13 rootfs")
                     }
                 }
             }
             val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
-            if (!actualHash.equals(rootfs.sha256, ignoreCase = true)) {
-                throw IOException("Debian rootfs checksum verification failed")
-            }
-        } finally {
-            connection?.disconnect()
-        }
+            if (!actualHash.equals(rootfs.sha256, ignoreCase = true)) { destination.delete(); throw IOException("Debian rootfs checksum verification failed") }
+        } finally { connection?.disconnect() }
     }
 
+    private fun copyAndVerifyRootfs(source: File, destination: File, expectedSha256: String) {
+        source.inputStream().use { input -> FileOutputStream(destination).use { output -> input.copyTo(output) } }
+        val digest = MessageDigest.getInstance("SHA-256")
+        destination.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
+        }
+        val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
+        if (!actualHash.equals(expectedSha256, ignoreCase = true)) { destination.delete(); throw IOException("Bundled Debian rootfs checksum verification failed") }
+    }
     private fun extractRootfs(archive: File, stagedRootfs: File) {
-        val rawDirectory = File(stagingDirectory, "unpacked")
-        ensureDirectoryExists(rawDirectory)
-        val minitar = File(context.filesDir, "bootstrap/bin/minitar")
-        val process = ProcessBuilder(minitar.absolutePath, "-p")
-            .directory(rawDirectory)
-            .redirectErrorStream(true)
-            .redirectInput(archive)
-            .start()
-        val exitCode = collectProcessOutput(process, "Debian rootfs extraction")
-        if (exitCode != 0) throw IOException("Debian rootfs extraction failed (exit $exitCode)")
-
-        val entries = rawDirectory.listFiles()?.toList().orEmpty()
-        if (entries.size != 1 || !entries[0].isDirectory) {
-            throw IOException("Debian rootfs archive did not have the expected top-level directory")
+        if (stagedRootfs.exists() && !stagedRootfs.deleteRecursively()) {
+            throw IOException("Could not clear the Debian rootfs staging directory")
         }
-        val topLevel = entries[0]
-        if (!File(topLevel, "etc").isDirectory || !File(topLevel, "usr").isDirectory) {
-            throw IOException("Debian rootfs archive has an unexpected directory layout")
-        }
-        if (!stagedRootfs.mkdirs()) throw IOException("Could not create the Debian rootfs staging directory")
-        val children = topLevel.listFiles()?.toList().orEmpty()
-        if (children.isEmpty()) throw IOException("Debian rootfs archive is empty")
-        for (child in children) {
-            if (!child.renameTo(File(stagedRootfs, child.name))) {
-                throw IOException("Could not prepare Debian rootfs entry ${child.name}")
+        ensureDirectoryExists(stagedRootfs)
+        val canonicalRoot = stagedRootfs.canonicalFile
+        val rootPrefix = canonicalRoot.path + File.separator
+        var extractedEntries = 0
+        XZCompressorInputStream(archive.inputStream().buffered()).use { xz ->
+            TarArchiveInputStream(xz).use { tar ->
+                while (true) {
+                    val entry = tar.nextTarEntry ?: break
+                    val normalizedName = entry.name.replace('\\', '/')
+                    val components = normalizedName.split('/').filter { it.isNotEmpty() && it != "." }
+                    // proot-distro archives contain a single wrapper directory.
+                    if (components.size <= 1) continue
+                    if (components.any { it == ".." } || normalizedName.startsWith("/")) {
+                        throw IOException("Unsafe path in Debian rootfs archive: ${entry.name}")
+                    }
+                    val relative = components.drop(1).joinToString(File.separator)
+                    if (relative.isEmpty()) continue
+                    // Android app storage cannot create or safely remove Linux device nodes.
+                    // Do not extract anything under /dev; PRoot binds the host /dev at runtime.
+                    // Skipping it also avoids deleteRecursively() failures on archive-specific
+                    // /dev layouts and symlinks.
+                    if (relative == "dev" || relative.startsWith("dev/")) continue
+                    val target = File(canonicalRoot, relative).canonicalFile
+                    if (!target.path.startsWith(rootPrefix)) {
+                        throw IOException("Debian rootfs archive entry escapes staging directory")
+                    }
+                    when {
+                        entry.isDirectory -> ensureDirectoryExists(target)
+                        entry.isSymbolicLink -> {
+                            ensureDirectoryExists(target.parentFile)
+                            if (target.exists() || Files.isSymbolicLink(target.toPath())) target.delete()
+                            // Absolute links are intentionally preserved for PRoot's guest-root semantics.
+                            Files.createSymbolicLink(target.toPath(), java.nio.file.Paths.get(entry.linkName))
+                        }
+                        entry.isFile -> {
+                            ensureDirectoryExists(target.parentFile)
+                            FileOutputStream(target).use { output ->
+                                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                while (true) {
+                                    val count = tar.read(buffer)
+                                    if (count < 0) break
+                                    output.write(buffer, 0, count)
+                                }
+                            }
+                            if (entry.mode and 0b001001001 != 0) target.setExecutable(true, false)
+                        }
+                        entry.isLink -> {
+                            ensureDirectoryExists(target.parentFile)
+                            val linkParts = entry.linkName.replace('\\', '/').split('/')
+                                .filter { it.isNotEmpty() && it != "." }
+                            if (linkParts.any { it == ".." }) {
+                                throw IOException("Unsafe hard link in Debian rootfs archive")
+                            }
+                            val sourceRelative = linkParts.drop(1).joinToString(File.separator)
+                            val source = File(canonicalRoot, sourceRelative).canonicalFile
+                            if (!source.path.startsWith(rootPrefix) || !source.isFile) {
+                                throw IOException("Unsupported hard link in Debian rootfs archive: ${entry.name}")
+                            }
+                            Files.createLink(target.toPath(), source.toPath())
+                        }
+                    }
+                    extractedEntries++
+                }
             }
         }
-        if (!topLevel.delete()) throw IOException("Could not remove the Debian archive wrapper directory")
+        if (extractedEntries == 0) throw IOException("Debian rootfs archive is empty")
+        // /dev entries were skipped during extraction because Android app storage cannot
+        // create Linux device nodes. PRoot supplies the runtime /dev bind mount.
+        ensureDirectoryExists(File(stagedRootfs, "dev"))
         if (!File(stagedRootfs, "usr/bin/env").isFile ||
             !File(stagedRootfs, "usr/bin/apt-get").isFile
         ) {
@@ -406,6 +590,29 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun installPackages(rootfs: File, manifest: LinuxEnvironmentManifest) {
+        val preinstalledMarker = File(rootfs, "var/lib/miracle/preinstalled-environment")
+        if (preinstalledMarker.isFile) {
+            val markerText = preinstalledMarker.readText()
+            val expectedArch = if (environmentArchitecture == LinuxArchitecture.ARM64) "arm64" else "x86_64"
+            if (!markerText.contains("schema=1") ||
+                !markerText.contains("arch=$expectedArch") ||
+                !markerText.contains("debian=13") ||
+                !markerText.contains("stack=klipper-moonraker-mainsail")) {
+                throw IOException("Preinstalled Debian environment metadata does not match this device")
+            }
+            // The release rootfs already contains system packages, Python environments,
+            // Klipper, Moonraker and Mainsail. Validate it rather than rerunning apt/pip.
+            runInRootfs(rootfs, listOf("/usr/bin/apt-get", "check"))
+            runInRootfs(rootfs, listOf("/opt/miracle-klipper/venvs/klipper/bin/python", "--version"))
+            runInRootfs(rootfs, listOf("/opt/miracle-klipper/venvs/moonraker/bin/python", "--version"))
+            if (!File(rootfs, "var/www/mainsail/index.html").isFile ||
+                !File(rootfs, "opt/miracle-klipper/klipper/klippy/klippy.py").isFile ||
+                !File(rootfs, "opt/miracle-klipper/moonraker/moonraker.py").isFile) {
+                throw IOException("Preinstalled Miracle Klipper stack is incomplete")
+            }
+            return
+        }
+
         val policy = File(rootfs, "usr/sbin/policy-rc.d")
         val hadPolicy = policy.exists()
         val oldPolicy = if (hadPolicy) policy.readBytes() else null
@@ -427,6 +634,25 @@ class LinuxEnvironmentRepositoryImpl(
                 policy.delete()
             }
         }
+        installKlipperStack(rootfs)
+    }
+
+    private fun installKlipperStack(rootfs: File) {
+        state.value = LinuxEnvironmentProgress(
+            LinuxEnvironmentStage.InstallingPackages,
+            90,
+            "Installing Klipper, Moonraker and Mainsail"
+        )
+        val installer = File(rootfs, "tmp/install-miracle-klipper.sh")
+        ensureDirectoryExists(installer.parentFile!!)
+        context.assets.open("linux/install-miracle-klipper.sh").use { input ->
+            FileOutputStream(installer).use { output -> input.copyTo(output) }
+        }
+        if (!installer.setExecutable(true, false)) {
+            throw IOException("Could not prepare the Miracle Klipper installer")
+        }
+        runInRootfs(rootfs, listOf("/bin/bash", "/tmp/install-miracle-klipper.sh"))
+        installer.delete()
     }
 
     private fun verifyEnvironment(rootfs: File) {
@@ -436,15 +662,19 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun runInRootfs(rootfs: File, command: List<String>) {
-        val bootstrapBin = File(context.filesDir, "bootstrap/bin")
-        val proot = File(bootstrapBin, "proot")
+        // Android 10+ mounts app filesDir with noexec. Native libraries are extracted
+        // from jniLibs into nativeLibraryDir, which is the supported executable location.
+        val nativeDirectory = File(context.applicationInfo.nativeLibraryDir)
+        val proot = File(nativeDirectory, "libproot.so")
         val temporaryDirectory = File(baseDirectory, "tmp")
-        // PRoot's link2symlink backing files must live on the rootfs filesystem.
-        // Keeping them in an app-level sibling can make dpkg's temporary hardlink
-        // replacements disappear under Android SELinux while it applies metadata.
-        val linkDirectory = File(rootfs, ".l2s")
+        if (!proot.isFile || !proot.canExecute()) {
+            throw IOException("Android PRoot binary is missing or not executable from nativeLibraryDir: ${proot.absolutePath}. Rebuild the APK with the architecture-specific PRoot native libraries.")
+        }
+        // Use a private app-owned temporary directory for PRoot's runtime files.
+        // Do not enable PRoot's link2symlink emulation here: on some Android kernels
+        // the legacy Octo4a PRoot build fails chmod/chdir while initializing that layer.
+        // The extracted rootfs uses real hard links where supported by app storage.
         ensureDirectoryExists(temporaryDirectory)
-        ensureDirectoryExists(linkDirectory)
 
         val args = mutableListOf(proot.absolutePath, "-r", rootfs.absolutePath, "-0")
         listOf("/dev", "/proc", "/storage", "/system", "/vendor", "/apex", "/sys")
@@ -452,42 +682,62 @@ class LinuxEnvironmentRepositoryImpl(
             .forEach { args.addAll(listOf("-b", it)) }
         val serialPipe = File(context.filesDir, "serialpipe")
         if (serialPipe.exists()) args.addAll(listOf("-b", "${serialPipe.absolutePath}:/dev/ttyOcto4a"))
-        val fakeProcStat = File(context.filesDir, "bootstrap/fake_proc_stat")
+        val fakeProcStat = ProotRuntime.fakeProcStat(context)
         if (fakeProcStat.isFile) args.addAll(listOf("-b", "${fakeProcStat.absolutePath}:/proc/stat"))
-        args.addAll(listOf("-L", "--link2symlink", "-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
-        args.addAll(listOf("-w", "/root", "/usr/bin/env"))
-        args.addAll(listOf(
-            "HOME=/root",
-            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "LANG=C.UTF-8",
-            "DEBIAN_FRONTEND=noninteractive",
-            // Do not let Android's TMPDIR leak into package maintainer scripts.
-            // It points outside the PRoot rootfs and can make mktemp fail.
-            "TMPDIR=/tmp",
-            "TMP=/tmp",
-            "TEMP=/tmp"
-        ))
-        args.addAll(command)
+        args.addAll(listOf("-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
+        // Do not require /usr/bin/env to be executable in the freshly unpacked rootfs.
+        // PRoot forwards the host process environment to the guest command.
+        // Use / as the initial working directory; /root may not yet be usable on every device.
+        args.addAll(listOf("-w", "/", command.first()))
+        args.addAll(command.drop(1))
 
-        val builder = ProcessBuilder(args).directory(bootstrapBin)
+        val builder = ProcessBuilder(args).directory(nativeDirectory)
         builder.redirectErrorStream(true)
+        builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
-        builder.environment()["PROOT_L2S_DIR"] = linkDirectory.absolutePath
-        builder.environment()["PWD"] = bootstrapBin.absolutePath
+        // PRoot builds distributed by Termux-style Android packages use a separate
+        // Android/Bionic loader. Without PROOT_LOADER, PRoot may fall back to an
+        // invalid compiled-in path and try to interpret the ELF as a shell script.
+        val prootLoader = File(nativeDirectory, "libproot-loader.so")
+        if (!prootLoader.isFile || !prootLoader.canExecute()) {
+            throw IOException("Android PRoot loader is missing or not executable: ${prootLoader.absolutePath}")
+        }
+        builder.environment()["PROOT_LOADER"] = prootLoader.absolutePath
+        builder.environment().remove("PROOT_L2S_DIR")
+        builder.environment()["PWD"] = "/"
+        builder.environment()["HOME"] = "/root"
+        builder.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        builder.environment()["LANG"] = "C.UTF-8"
+        builder.environment()["DEBIAN_FRONTEND"] = "noninteractive"
+        builder.environment()["TMPDIR"] = "/tmp"
+        builder.environment()["TMP"] = "/tmp"
+        builder.environment()["TEMP"] = "/tmp"
         builder.environment().remove("LD_PRELOAD")
         builder.environment().remove("LD_LIBRARY_PATH")
         val process = builder.start()
-        val exitCode = collectProcessOutput(process, command.joinToString(" "))
+        val outputTail = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val operation = command.joinToString(" ")
+        val exitCode = collectProcessOutput(process, operation, outputTail)
         if (exitCode != 0) {
-            throw IOException("Debian command failed with exit code $exitCode: ${command.first()}")
+            val details = synchronized(outputTail) { outputTail.takeLast(20).joinToString("\n") }
+            val suffix = if (details.isBlank()) "" else "\nLast command output:\n$details"
+            throw IOException("Debian command failed with exit code $exitCode: $operation$suffix")
         }
     }
 
-    private fun collectProcessOutput(process: Process, operation: String): Int {
+    private fun collectProcessOutput(
+        process: Process,
+        operation: String,
+        outputTail: MutableList<String>
+    ): Int {
         val reader = Thread({
             try {
                 process.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
+                        synchronized(outputTail) {
+                            outputTail.add(line)
+                            if (outputTail.size > 40) outputTail.removeAt(0)
+                        }
                         synchronized(logFile) {
                             logFile.appendText("$operation: $line\n")
                         }
@@ -545,10 +795,12 @@ class LinuxEnvironmentRepositoryImpl(
 
     private fun activateRootfs(stagedRootfs: File, expectedHash: String) {
         ensureDirectoryExists(rootfsDirectory.parentFile!!)
-        val previousRootfs = File(rootfsDirectory.parentFile, "debian-trixie-arm64.previous")
+        val previousRootfs = File(rootfsDirectory.parentFile, "debian-trixie-$environmentArchitecture.previous")
         if (previousRootfs.exists() && !previousRootfs.deleteRecursively()) {
             throw IOException("Could not remove the previous Debian rootfs backup")
         }
+        val stagedRootPath = stagedRootfs.absolutePath
+        val activeRootPath = rootfsDirectory.absolutePath
         val hadRootfs = rootfsDirectory.exists()
         if (hadRootfs && !rootfsDirectory.renameTo(previousRootfs)) {
             throw IOException("Could not preserve the existing Debian rootfs")
@@ -557,9 +809,44 @@ class LinuxEnvironmentRepositoryImpl(
             if (hadRootfs) previousRootfs.renameTo(rootfsDirectory)
             throw IOException("Could not activate the Debian rootfs")
         }
-        ensureDirectoryExists(stateDirectory)
-        File(stateDirectory, "linux-environment.sha256").writeText("$expectedHash\n")
+
+        try {
+            // PRoot link2symlink stores emulated hard-link targets under rootfs/.l2s.
+            // Debian packages are configured before activation, while the rootfs still
+            // lives in the staging directory. Rewrite any absolute symlink targets that
+            // refer to that old path before the next dpkg invocation.
+            rewriteMovedRootfsSymlinks(rootfsDirectory, stagedRootPath, activeRootPath)
+            ensureDirectoryExists(stateDirectory)
+            File(stateDirectory, "linux-environment.sha256").writeText("$expectedHash\n")
+        } catch (error: Exception) {
+            rootfsDirectory.deleteRecursively()
+            if (hadRootfs && !previousRootfs.renameTo(rootfsDirectory)) {
+                error.addSuppressed(IOException("Could not restore the previous Debian rootfs"))
+            }
+            throw IOException("Could not finalize the Debian rootfs after moving its PRoot hard-link metadata", error)
+        }
         if (previousRootfs.exists()) previousRootfs.deleteRecursively()
+    }
+
+    private fun rewriteMovedRootfsSymlinks(root: File, oldRootPath: String, newRootPath: String) {
+        fun visit(directory: File) {
+            val children = directory.listFiles()
+                ?: throw IOException("Could not inspect Debian directory ${directory.absolutePath}")
+            for (child in children) {
+                val path = child.toPath()
+                if (Files.isSymbolicLink(path)) {
+                    val target = Files.readSymbolicLink(path).toString()
+                    if (target.contains(oldRootPath)) {
+                        val rewrittenTarget = target.replace(oldRootPath, newRootPath)
+                        Files.delete(path)
+                        Files.createSymbolicLink(path, Paths.get(rewrittenTarget))
+                    }
+                } else if (child.isDirectory) {
+                    visit(child)
+                }
+            }
+        }
+        visit(root)
     }
 
     private fun ensureDirectoryExists(directory: File) {

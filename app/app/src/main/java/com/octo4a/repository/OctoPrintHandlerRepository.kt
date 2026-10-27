@@ -120,73 +120,23 @@ class OctoPrintHandlerRepositoryImpl(
         }
 
     override suspend fun beginInstallation() {
-        try {
-            withContext(Dispatchers.IO) {
-                if (!bootstrapRepository.isBootstrapInstalled) {
-                    val octoPrintRelease = githubRepository.getNewestRelease("OctoPrint/OctoPrint")
-                    _octoPrintVersion.emit(octoPrintRelease.tagName)
-
-                    logger.log { "No bootstrap detected, proceeding with installation" }
-                    _serverState.emit(ServerStatus.DownloadingBootstrap)
-                    bootstrapRepository.downloadBootstrap()
-                    _serverState.emit(ServerStatus.ExtractingBootstrap)
-                    bootstrapRepository.extractBootstrap()
-                    logger.log { "Bootstrap installed" }
-                    _serverState.emit(ServerStatus.BootingUp)
-                    insertInitialConfig()
-                    startOctoPrint()
-                    logger.log { "Dependencies installed" }
-                } else {
-                    getExtrasStatus()
-                    startOctoPrint()
-                    if (preferences.enableSSH) {
-                        logger.log { "Enabling ssh" }
-                        startSSH()
-                    }
-                    extensionsRepository.startUpNecessaryExtensions()
-                }
-            }
-        } catch (e: java.lang.Exception) {
-            _serverState.emit(ServerStatus.InstallationError)
-            val appError = errorHandler.report("Linux environment", "Installation", e)
-            _installErrorDescription.emit(appError.message)
-        }
+        // Legacy OctoPrint/Octo4a bootstrap installation is intentionally disabled.
+        // Miracle Klipper provisions PRoot, Debian 13 and the Klipper stack through
+        // LinuxEnvironmentRepository and the dedicated setup screen.
+        _serverState.emit(ServerStatus.Running)
+        _installErrorDescription.emit("")
+        logger.log { "Legacy OctoPrint bootstrap skipped; use the Miracle Klipper setup flow" }
     }
 
     override fun getExtrasStatus() {
-        val file = File("/data/data/com.octo4a/files/bootstrap/bootstrap/usr/bin/g++")
-
-        if (file.exists()) {
-            _extrasStatus.value = ExtrasStatus.Installed
-        } else if (_extrasStatus.value != ExtrasStatus.Installing) {
-            _extrasStatus.value = ExtrasStatus.NotInstalled
-        }
+        // OctoPrint plugin extras are not part of Miracle Klipper's runtime.
+        _extrasStatus.value = ExtrasStatus.NotInstalled
     }
 
     override fun installExtras() {
-        if (_extrasStatus.value == ExtrasStatus.NotInstalled) {
-            Thread {
-                _extrasStatus.value = ExtrasStatus.Installing
-                var installSucceeded = false
-                try {
-                    retryOperation(logger, maxRetries = 2) {
-                        bootstrapRepository.runCommand("curl -s https://raw.githubusercontent.com/feelfreelinux/octo4a/master/scripts/setup-plugin-extras.sh | bash -s")
-                            .waitAndPrintOutput(
-                                logger
-                            )
-                    }
-                    installSucceeded = true
-                } catch (e: java.lang.Exception) {
-                    errorHandler.report("Extensions", "Install optional packages", e)
-                }
-
-                _extrasStatus.value = if (installSucceeded) {
-                    ExtrasStatus.Installed
-                } else {
-                    ExtrasStatus.NotInstalled
-                }
-            }.start()
-        }
+        // Deliberately disabled: do not run scripts from the legacy Octo4a project.
+        _extrasStatus.value = ExtrasStatus.NotInstalled
+        logger.log { "Legacy OctoPrint plugin extras are disabled in Miracle Klipper" }
     }
 
     fun getPid(p: Process): Int {

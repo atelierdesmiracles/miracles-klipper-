@@ -15,6 +15,7 @@ class MainPreferences(context: Context) : Preferences(context, true) {
     var flashWhenObserved by booleanPref()
     var currentRelease by stringPref(defaultValue = "")
     var selectedKlipperWebInterface by stringPref(defaultValue = "mainsail")
+    var selectedLinuxArchitecture by stringPref(defaultValue = "")
     var defaultPrinterPid by intPref()
     var defaultPrinterVid by intPref()
     var defaultPrinterCustomDriver by stringPref()

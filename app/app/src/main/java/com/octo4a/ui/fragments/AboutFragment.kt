@@ -30,13 +30,9 @@ class AboutFragment : Fragment() {
 
         appVersionText.text = getString(R.string.app_version_format, version, bootstrapVersion)
 
-        joinTelegramButton.setOnClickListener {
-            openWebsite("https://t.me/octo4achat")
-        }
-
-        donateButton.setOnClickListener {
-            openWebsite("https://paypal.me/feelfreelinux")
-        }
+        // The Telegram group and donation link belonged to upstream Octo4a, not to this project.
+        joinTelegramButton.visibility = View.GONE
+        donateButton.visibility = View.GONE
 
         appProjectButton.setOnClickListener {
             openWebsite("https://github.com/atelierdesmiracles/miracles-klipper-")

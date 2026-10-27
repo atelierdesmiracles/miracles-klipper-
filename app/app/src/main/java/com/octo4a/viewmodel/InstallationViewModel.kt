@@ -24,43 +24,10 @@ class InstallationViewModel(context: Application, octoPrintHandlerRepository: Oc
     val bootstrapDownloadProgress = bootstrapRepository.downloadProgressData
 
     fun fetchBootstrapReleases() {
-        viewModelScope.launch {
-            withIO {
-                try {
-                    // Fetch releases from octo4a-bootstrap-builder
-                    val newestReleases = githubRepository.getNewestReleases("feelfreelinux/octo4a-bootstrap-builder").toMutableList()
-
-                    // Sort for newest releases
-                    newestReleases.sortByDescending { it.publishedAt }
-
-                    val arch = getArchString()
-
-                    val bootstrapItems = newestReleases.mapNotNull {
-                        // Get matching asset
-                        val asset = it.assets.firstOrNull { asset -> asset.name.contains(arch) }
-                        val nameSplit = it.name.split("-")
-
-                        // Filter out invalid releases
-                        if (nameSplit.size != 2 || (asset == null)) null
-                        else BootstrapItem("Octo4a USB runtime", nameSplit.first().removePrefix("v"), asset.browserDownloadUrl, it.prerelease)
-                    }
-
-
-                    // Latest non-prerelease should be the recommended bootstrap
-                    val recommendedItem = bootstrapItems.firstOrNull { !it.prerelease }
-
-                    recommendedItem?.recommended = true
-                    _bootstrapReleases.value = bootstrapItems
-                    _selectedRelease.value = recommendedItem
-
-                    recommendedItem?.apply {
-                        bootstrapRepository.selectReleaseForInstallation(this)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
+        // The Octo4a bootstrap builder is intentionally no longer queried.
+        // Miracle Klipper provisions PRoot and Debian through LinuxEnvironmentRepository.
+        _bootstrapReleases.value = emptyList()
+        _selectedRelease.value = null
     }
 
     fun selectBootstrapRelease(bootstrapItem: BootstrapItem) {
