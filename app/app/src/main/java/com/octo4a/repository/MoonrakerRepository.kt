@@ -122,7 +122,7 @@ class MoonrakerRepositoryImpl(
         !MoonrakerConfigurationValidator.isSafeLocalConfiguration(readConfiguration()) ->
             MoonrakerProgress(
                 MoonrakerStage.NeedsConfiguration,
-                "Moonraker config must use loopback-only access and the Klipper socket",
+                "Moonraker config must use loopback-only access, the Klipper socket, and the Mainsail/Fluidd proxy origin",
                 manifest.revision
             )
         else -> MoonrakerProgress(
@@ -270,7 +270,7 @@ class MoonrakerRepositoryImpl(
         if (!isInstalled) throw IOException("Install Moonraker before starting it")
         migrateLegacyConfiguration()
         if (!MoonrakerConfigurationValidator.isSafeLocalConfiguration(readConfiguration())) {
-            val message = "Moonraker config must bind to loopback and use the Nginx proxy settings"
+            val message = "Moonraker config must bind to loopback and allow the local web interface origin on port 8080"
             state.value = MoonrakerProgress(MoonrakerStage.NeedsConfiguration, message, manifest.revision)
             throw IOException(message)
         }
@@ -400,8 +400,8 @@ class MoonrakerRepositoryImpl(
                     " fc00::/7\n" +
                     " fe80::/10\n" +
                     "cors_domains:\n" +
-                    " http://127.0.0.1:5000\n" +
-                    " http://localhost:5000\n\n" +
+                    " http://127.0.0.1:8080\n" +
+                    " http://localhost:8080\n\n" +
                     "[machine]\n" +
                     "provider: none\n" +
                     "shutdown_action: halt\n\n" +
@@ -938,8 +938,8 @@ internal object MoonrakerConfigurationValidator {
                 ) else setOf("127.0.0.0/8", "::1/128")
                 ) &&
             auth.listValues("cors_domains") == setOf(
-                "http://127.0.0.1:5000",
-                "http://localhost:5000"
+                "http://127.0.0.1:8080",
+                "http://localhost:8080"
             )
     }
 
