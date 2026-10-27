@@ -1,8 +1,13 @@
 package com.octo4a.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
+import java.io.File
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.octo4a.R
@@ -36,6 +41,17 @@ class KlipperSetupActivity : AppCompatActivity() {
         openAppButton.setOnClickListener { openMainActivity(markSkipped = !setupCompleted) }
         skipSetupButton.setOnClickListener { openMainActivity(markSkipped = true) }
         retryButton.setOnClickListener { startSetup() }
+        copySetupLogButton.setOnClickListener {
+            try {
+                val logFile = File(filesDir, "miracle-klipper/logs/debian-install.log")
+                val logText = if (logFile.isFile) logFile.readText() else "Journal Debian introuvable."
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Miracle Klipper Debian log", logText))
+                Toast.makeText(this, "Journal copié. Colle-le dans le chat.", Toast.LENGTH_LONG).show()
+            } catch (error: Exception) {
+                Toast.makeText(this, "Impossible de lire le journal : ${error.message}", Toast.LENGTH_LONG).show()
+            }
+        }
         startSetup()
     }
 
@@ -79,6 +95,7 @@ class KlipperSetupActivity : AppCompatActivity() {
                 )
                 retryButton.visibility = View.VISIBLE
                 openAppButton.visibility = View.VISIBLE
+                copySetupLogButton.visibility = View.VISIBLE
             }
         }
     }
