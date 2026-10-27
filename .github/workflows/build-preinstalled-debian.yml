@@ -97,6 +97,8 @@ jobs:
           sudo chroot work/rootfs /usr/bin/apt-get check
           test -x work/rootfs/opt/miracle-klipper/venvs/klipper/bin/python
           test -x work/rootfs/opt/miracle-klipper/venvs/moonraker/bin/python
+          test -f work/rootfs/opt/miracle-klipper/klipper/klippy/klippy.py
+          test -f work/rootfs/opt/miracle-klipper/moonraker/moonraker.py
           test -f work/rootfs/var/www/mainsail/index.html
           mkdir -p work/rootfs/var/lib/miracle
           printf 'schema=1\narch=${{ matrix.arch }}\ndebian=13\nstack=klipper-moonraker-mainsail\n' > work/rootfs/var/lib/miracle/preinstalled-environment
