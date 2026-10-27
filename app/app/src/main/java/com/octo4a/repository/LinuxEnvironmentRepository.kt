@@ -154,8 +154,8 @@ class LinuxEnvironmentRepositoryImpl(
             ) && File(rootfsDirectory, "usr/bin/env").isFile &&
                 File(rootfsDirectory, "usr/bin/apt-get").isFile &&
                 File(rootfsDirectory, "usr/bin/python3").exists() &&
-                File(baseDirectory, "bootstrap/bin/proot").canExecute() &&
-                File(baseDirectory, "bootstrap/libexec/proot").listFiles()?.isNotEmpty() == true &&
+                File(context.applicationInfo.nativeLibraryDir, "libproot.so").canExecute() &&
+                File(context.applicationInfo.nativeLibraryDir, "libproot-loader.so").canExecute() &&
                 File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz").isFile &&
                 File(baseDirectory, "bootstrap/android-proot-version").let {
                     it.isFile && it.readText().trim() in setOf(
@@ -662,9 +662,14 @@ class LinuxEnvironmentRepositoryImpl(
     }
 
     private fun runInRootfs(rootfs: File, command: List<String>) {
-        val bootstrapBin = File(baseDirectory, "bootstrap/bin")
-        val proot = File(bootstrapBin, "proot")
+        // Android 10+ mounts app filesDir with noexec. Native libraries are extracted
+        // from jniLibs into nativeLibraryDir, which is the supported executable location.
+        val nativeDirectory = File(context.applicationInfo.nativeLibraryDir)
+        val proot = File(nativeDirectory, "libproot.so")
         val temporaryDirectory = File(baseDirectory, "tmp")
+        if (!proot.isFile || !proot.canExecute()) {
+            throw IOException("Android PRoot binary is missing or not executable from nativeLibraryDir: ${proot.absolutePath}. Rebuild the APK with the architecture-specific PRoot native libraries.")
+        }
         // Use a private app-owned temporary directory for PRoot's runtime files.
         // Do not enable PRoot's link2symlink emulation here: on some Android kernels
         // the legacy Octo4a PRoot build fails chmod/chdir while initializing that layer.
@@ -686,14 +691,14 @@ class LinuxEnvironmentRepositoryImpl(
         args.addAll(listOf("-w", "/", command.first()))
         args.addAll(command.drop(1))
 
-        val builder = ProcessBuilder(args).directory(bootstrapBin)
+        val builder = ProcessBuilder(args).directory(nativeDirectory)
         builder.redirectErrorStream(true)
         builder.environment()["PROOT_NO_SECCOMP"] = "1"
         builder.environment()["PROOT_TMP_DIR"] = temporaryDirectory.absolutePath
         // PRoot builds distributed by Termux-style Android packages use a separate
         // Android/Bionic loader. Without PROOT_LOADER, PRoot may fall back to an
         // invalid compiled-in path and try to interpret the ELF as a shell script.
-        val prootLoader = File(baseDirectory, "bootstrap/libexec/proot/loader")
+        val prootLoader = File(nativeDirectory, "libproot-loader.so")
         if (!prootLoader.isFile || !prootLoader.canExecute()) {
             throw IOException("Android PRoot loader is missing or not executable: ${prootLoader.absolutePath}")
         }
