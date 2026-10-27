@@ -105,7 +105,7 @@ jobs:
       - name: Package and checksum environment
         run: |
           set -euo pipefail
-          tar --numeric-owner --xattrs --acls -cJf miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz -C work rootfs
+          tar --numeric-owner --xattrs --acls --exclude="rootfs/dev/*" --exclude="rootfs/proc/*" --exclude="rootfs/sys/*" -cJf miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz -C work rootfs
           sha256sum miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz > miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz.sha256
           du -h miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz
           cat miracle-klipper-debian13-${{ matrix.arch }}-preinstalled.tar.xz.sha256
