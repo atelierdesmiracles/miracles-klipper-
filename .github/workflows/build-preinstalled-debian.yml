@@ -6,6 +6,7 @@ on:
       - miracle-klipper-next
     paths:
       - "app/app/src/main/assets/linux/install-miracle-klipper.sh"
+      - ".github/workflows/build-preinstalled-debian.yml"
   workflow_dispatch:
 
 permissions:
