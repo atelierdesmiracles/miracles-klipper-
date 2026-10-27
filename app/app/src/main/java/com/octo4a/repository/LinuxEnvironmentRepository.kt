@@ -159,8 +159,7 @@ class LinuxEnvironmentRepositoryImpl(
                 File(baseDirectory, "bootstrap/rootfs/debian-trixie.tar.xz").isFile &&
                 File(baseDirectory, "bootstrap/android-proot-version").let {
                     it.isFile && it.readText().trim() in setOf(
-                        "android-bionic-proot-v1",
-                        "android-bionic-proot-v2-pinned"
+                        "android-bionic-proot-v3-android-refresh"
                     )
                 }
         }
@@ -185,7 +184,7 @@ class LinuxEnvironmentRepositoryImpl(
 
                 ensureStorage(manifest.minimumFreeStorageBytes)
 
-                if (stagingDirectory.exists() && !stagingDirectory.deleteRecursively()) {
+                if (stagingDirectory.exists() && !deleteTreeForRetry(stagingDirectory)) {
                     throw IOException("Could not remove the incomplete Debian installation; close any active installer process and retry")
                 }
                 ensureDirectoryExists(stagingDirectory)
@@ -212,7 +211,7 @@ class LinuxEnvironmentRepositoryImpl(
                 verifyEnvironment(stagedRootfs)
                 activateRootfs(stagedRootfs, manifest.rootfs.sha256)
 
-                if (stagingDirectory.exists()) stagingDirectory.deleteRecursively()
+                if (stagingDirectory.exists()) deleteTreeForRetry(stagingDirectory)
                 state.value = LinuxEnvironmentProgress(
                     LinuxEnvironmentStage.Ready,
                     100,
@@ -242,6 +241,22 @@ class LinuxEnvironmentRepositoryImpl(
                 throw error
             }
         }
+    }
+
+    /**
+     * Debian packages can leave root-owned-looking or read-only paths in a failed staging tree.
+     * Make the app-owned tree writable before retrying deletion so a failed install can recover.
+     */
+    private fun deleteTreeForRetry(target: File): Boolean {
+        if (!target.exists()) return true
+        if (target.isDirectory) {
+            target.listFiles()?.forEach { child ->
+                if (!deleteTreeForRetry(child)) return false
+            }
+        }
+        target.setWritable(true, false)
+        target.setExecutable(true, false)
+        return target.delete() || !target.exists()
     }
 
     private fun ensureSupportedArchitecture() {
@@ -276,7 +291,7 @@ class LinuxEnvironmentRepositoryImpl(
         val prootVersion = File(bootstrapDirectory, "android-proot-version")
         if (proot.isFile && proot.canExecute() && loader.isDirectory &&
             !loader.listFiles().isNullOrEmpty() && bundledRootfs.isFile &&
-            prootVersion.isFile && prootVersion.readText().trim() == "android-bionic-proot-v2-pinned") return
+            prootVersion.isFile && prootVersion.readText().trim() == "android-bionic-proot-v3-android-refresh") return
         val arch = when (environmentArchitecture) { LinuxArchitecture.ARM64 -> "arm64"; LinuxArchitecture.X86_64 -> "x86_64"; else -> throw IOException("Unsupported Miracle Klipper bootstrap architecture: $environmentArchitecture") }
         val baseUrl = "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13"
         val bundleName = "miracle-klipper-debian13-$arch.zip"
@@ -350,7 +365,7 @@ class LinuxEnvironmentRepositoryImpl(
 
         extractedRootfs.copyTo(bundledRootfs, overwrite = true)
         manifest.copyTo(File(bootstrapDirectory, "bootstrap-manifest.txt"), overwrite = true)
-        File(bootstrapDirectory, "android-proot-version").writeText("android-bionic-proot-v2-pinned")
+        File(bootstrapDirectory, "android-proot-version").writeText("android-bionic-proot-v3-android-refresh")
         staging.deleteRecursively()
     }
 
