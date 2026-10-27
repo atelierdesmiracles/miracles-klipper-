@@ -618,7 +618,7 @@ class LinuxEnvironmentRepositoryImpl(
             "opt/miracle-klipper/venvs/klipper/bin/python",
             "opt/miracle-klipper/venvs/moonraker/bin/python",
             "opt/miracle-klipper/klipper/klippy/klippy.py",
-            "opt/miracle-klipper/moonraker/moonraker.py",
+            "opt/miracle-klipper/moonraker/moonraker/moonraker.py",
             "var/www/mainsail/index.html"
         )
         // Python venv launchers in Debian are often absolute symlinks (for example
