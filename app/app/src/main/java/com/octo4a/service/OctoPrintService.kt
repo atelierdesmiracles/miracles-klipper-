@@ -93,7 +93,25 @@ class OctoPrintService : LifecycleService() {
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
-            when (intent?.action) {
+            val action = intent?.action
+            if (action == EVENT_USB_ATTACHED || action == EVENT_USB_DETACHED) {
+                val eventDevice = if (Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
+                }
+                val eventName = if (action == EVENT_USB_ATTACHED) "ATTACHED" else "DETACHED"
+                val eventMessage = if (eventDevice != null) {
+                    "USB broadcast $eventName: name=${eventDevice.deviceName}, VID=0x${eventDevice.vendorId.toString(16)}, PID=0x${eventDevice.productId.toString(16)}, interfaces=${eventDevice.interfaceCount}"
+                } else {
+                    "USB broadcast $eventName received without EXTRA_DEVICE"
+                }
+                Log.i(LOG_TAG, eventMessage)
+                logger.log(this@OctoPrintService, LogType.SYSTEM) { eventMessage }
+            }
+
+            when (action) {
                 EVENT_USB_ATTACHED -> {
                     virtualSerialDriver.updateDevicesList(BROADCAST_SERVICE_USB_GOT_ACCESS)?.apply {
                         handlerRepository.usbAttached(this)
@@ -102,7 +120,12 @@ class OctoPrintService : LifecycleService() {
                 }
 
                 EVENT_USB_DETACHED -> {
-                    val detachedDevice = intent?.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
+                    val detachedDevice = if (Build.VERSION.SDK_INT >= 33) {
+                        intent?.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent?.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
+                    }
                     virtualSerialDriver.handleDeviceDetached(detachedDevice)
                     virtualSerialDriver.updateDevicesList(BROADCAST_SERVICE_USB_GOT_ACCESS)
                     handlerRepository.usbDetached()
