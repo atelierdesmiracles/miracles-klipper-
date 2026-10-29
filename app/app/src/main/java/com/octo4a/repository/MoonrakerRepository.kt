@@ -942,9 +942,13 @@ internal object MoonrakerConfigurationValidator {
 
     fun isSafeLocalConfiguration(configuration: String): Boolean = isConfiguration(configuration, true)
 
-    fun isLegacyLocalConfiguration(configuration: String): Boolean = isConfiguration(configuration, false)
+    fun isLegacyLocalConfiguration(configuration: String): Boolean = isConfiguration(configuration, false, true)
 
-    private fun isConfiguration(configuration: String, useReverseProxy: Boolean): Boolean {
+    private fun isConfiguration(
+        configuration: String,
+        useReverseProxy: Boolean,
+        allowLegacyCors: Boolean = false
+    ): Boolean {
         val sections = mutableMapOf<String, MutableList<String>>()
         val sectionOccurrences = mutableMapOf<String, Int>()
         var currentSection: String? = null
@@ -961,6 +965,20 @@ internal object MoonrakerConfigurationValidator {
         val server = sections.singleSection("server", sectionOccurrences) ?: return false
         val auth = sections.singleSection("authorization", sectionOccurrences) ?: return false
         val machine = sections.singleSection("machine", sectionOccurrences) ?: return false
+        val corsDomains = auth.listValues("cors_domains")
+        val currentCorsDomains = setOf("http://127.0.0.1:8080", "http://localhost:8080")
+        val legacyCorsDomains8080 = currentCorsDomains + setOf("http://*.local:8080", "http://*.lan:8080")
+        val legacyCorsDomains5000 = setOf(
+            "http://127.0.0.1:5000",
+            "http://localhost:5000",
+            "http://*.local:5000",
+            "http://*.lan:5000"
+        )
+        val acceptedCorsDomains = if (allowLegacyCors) {
+            setOf(currentCorsDomains, legacyCorsDomains8080, legacyCorsDomains5000)
+        } else {
+            setOf(currentCorsDomains)
+        }
         return server.hasExactlyOneSetting("host", "127.0.0.1") &&
             server.hasExactlyOneSetting("port", "7125") &&
             server.hasExactlyOneSetting(
@@ -971,10 +989,7 @@ internal object MoonrakerConfigurationValidator {
             machine.hasExactlyOneSetting("provider", "none") &&
             auth.hasExactlyOneSetting("enable_api_key", "True") &&
             auth.listValues("trusted_clients") == setOf("127.0.0.0/8", "::1/128") &&
-            auth.listValues("cors_domains") == setOf(
-                "http://127.0.0.1:8080",
-                "http://localhost:8080"
-            )
+            corsDomains in acceptedCorsDomains
     }
 
     private fun Map<String, MutableList<String>>.singleSection(
