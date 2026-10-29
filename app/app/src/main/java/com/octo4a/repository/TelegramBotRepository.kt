@@ -63,7 +63,7 @@ class TelegramBotRepositoryImpl(
                 File(source, "bot/main.py").isFile && File(venv, "bin/python").isFile
         }
     override val isRunning: Boolean
-        get() = synchronized(lock) { process?.let { runCatching { it.isAlive }.getOrDefault(false) } == true }
+        get() = synchronized(lock) { process?.let { child -> runCatching { child.exitValue(); false }.getOrElse { true } } == true }
 
     private fun hasConfig() = !prefs.getString("token", null).isNullOrBlank() &&
         !prefs.getString("chat_id", null).isNullOrBlank()
@@ -151,7 +151,7 @@ class TelegramBotRepositoryImpl(
                     else TelegramBotProgress(TelegramBotStage.Failed, "Telegram bot exited with code " + code + "; see telegram-process.log")
             }, "telegram-bot-monitor").apply { isDaemon = true; start() }
             delay(1200)
-            if (!child.isAlive) throw IOException("Telegram bot exited during startup; inspect telegram-process.log")
+            if (runCatching { child.exitValue(); true }.getOrElse { false }) throw IOException("Telegram bot exited during startup; inspect telegram-process.log")
             mutableProgress.value = TelegramBotProgress(TelegramBotStage.Running, "Telegram bot is running")
         }
     }
