@@ -43,6 +43,7 @@ val appModule = module {
     single<KlipperRepository> { KlipperRepositoryImpl(androidContext(), get(), get()) }
     single<MoonrakerRepository> { MoonrakerRepositoryImpl(androidContext(), get(), get(), get()) }
     single<KlipperScreenRepository> { KlipperScreenRepositoryImpl(androidContext(), get(), get(), get()) }
+    single<TelegramBotRepository> { TelegramBotRepositoryImpl(androidContext(), get(), get(), get()) }
     single<KlipperWebInterfaceRepository> {
         KlipperWebInterfaceRepositoryImpl(androidContext(), get(), get(), get())
     }
