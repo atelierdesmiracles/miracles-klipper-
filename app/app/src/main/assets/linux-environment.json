@@ -11,8 +11,8 @@
   "rootfs": {
     "source": "termux/proot-distro",
     "sourceRelease": "v4.26.0",
-    "url": "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13/debian-trixie-aarch64-preinstalled.tar.xz",
-    "sha256": "93fc7e011048416055d00cc6ff22ea8896ab335c848dea9c3edf64eaaa21896b",
+    "url": "https://github.com/atelierdesmiracles/miracles-klipper-/releases/download/miracle-klipper-debian13/debian-trixie-aarch64-preinstalled-c578c1cce04f7d6b2084089b831ec4dc807cbd57c0a35e1b6419ac315e1209b3.tar.xz",
+    "sha256": "c578c1cce04f7d6b2084089b831ec4dc807cbd57c0a35e1b6419ac315e1209b3",
     "archiveFormat": "tar.xz",
     "stripComponents": 1
   },
