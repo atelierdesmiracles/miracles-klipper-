@@ -1,0 +1,80 @@
+name: Experimental embedded XServer-XSDL build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-xsdl:
+    name: Build upstream XServer-XSDL toolchain
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Install upstream build dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y \
+            bison make zip git locales pkg-config curl autoconf automake autopoint \
+            libtool libtool-bin help2man texinfo intltool xfonts-utils xutils-dev \
+            libfontenc-dev libxkbfile-dev libxmuu-dev libjpeg-dev libpng-dev \
+            libpixman-1-dev libssl-dev libpciaccess-dev python3-xcbgen libfreetype-dev \
+            build-essential cmake ninja-build unzip wget
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install legacy Android SDK packages
+        run: |
+          sdkmanager --install "platforms;android-29" "build-tools;29.0.3" "platform-tools"
+          yes | sdkmanager --licenses
+
+      - name: Set up Android NDK r21d
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r21d
+          add-to-path: false
+
+      - name: Check out Commander Genius and XServer-XSDL build recipe
+        run: |
+          git clone --recurse-submodules --branch sdl_android https://github.com/pelya/commandergenius.git xsdl-build
+          cd xsdl-build
+          git rev-parse HEAD | tee ../commandergenius-revision.txt
+          test -f project/jni/application/xserver/AndroidBuild.sh
+          test -f project/jni/application/xserver/AndroidAppSettings.cfg
+
+      - name: Build upstream XServer-XSDL APK
+        working-directory: xsdl-build
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+        run: |
+          chmod +x build.sh
+          ./build.sh xserver
+
+      - name: Collect build outputs and source licenses
+        if: always()
+        run: |
+          mkdir -p xsdl-output
+          cp commandergenius-revision.txt xsdl-output/ 2>/dev/null || true
+          cp xsdl-build/project/jni/application/xserver/COPYING xsdl-output/ 2>/dev/null || true
+          find xsdl-build/project/app/build/outputs/apk -type f -name '*.apk' -exec cp {} xsdl-output/ \; 2>/dev/null || true
+          find xsdl-build/project/jni/application/xserver -maxdepth 2 -type f \( -name 'libapplication-*.so' -o -name 'bin-map*.zip' \) -exec cp {} xsdl-output/ \; 2>/dev/null || true
+          find xsdl-output -maxdepth 1 -type f -print
+
+      - name: Upload experimental XSDL build outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xsdl-upstream-build-experiment
+          path: xsdl-output/
+          if-no-files-found: warn
