@@ -301,10 +301,12 @@ class ServerFragment : Fragment() {
             return
         }
 
+        // Mainsail must remain available before the printer has been configured.
+        // Klipper cannot start without [mcu] and [printer], but Moonraker can start
+        // disconnected and expose its configuration-file API through Mainsail.
         val missingSetup = when {
             !linuxEnvironment.isReady -> getString(R.string.klipper_dashboard_install_debian)
             !klipper.isInstalled -> getString(R.string.klipper_dashboard_install_klipper)
-            !klipper.isPrinterConfigurationReady -> getString(R.string.klipper_dashboard_configure_printer)
             !moonraker.isInstalled -> getString(R.string.klipper_dashboard_install_moonraker)
             !klipperWebInterface.isInstalled(klipperWebInterface.selectedClient) ->
                 getString(R.string.klipper_dashboard_install_web, klipperWebInterface.selectedClient.displayName)
@@ -319,7 +321,12 @@ class ServerFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 withTimeout(180_000L) {
-                    if (klipper.progress.value.stage != KlipperStage.Running) {
+                    // Only start Klipper when a real printer configuration is present.
+                    // Otherwise keep it stopped and bring up Moonraker + Mainsail so the
+                    // user can edit printer.cfg instead of being trapped outside the UI.
+                    if (klipper.isPrinterConfigurationReady &&
+                        klipper.progress.value.stage != KlipperStage.Running
+                    ) {
                         val previousKlipperState = klipper.progress.value
                         ContextCompat.startForegroundService(
                             requireContext(),
@@ -339,6 +346,8 @@ class ServerFragment : Fragment() {
                         }
                     }
 
+                    // Moonraker is allowed to report KlipperDisconnected while the
+                    // printer configuration is being edited; that is not a startup failure.
                     if (moonraker.progress.value.stage !in setOf(
                             MoonrakerStage.Ready,
                             MoonrakerStage.KlipperDisconnected,
