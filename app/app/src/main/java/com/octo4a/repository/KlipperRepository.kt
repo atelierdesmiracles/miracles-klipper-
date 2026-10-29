@@ -275,6 +275,8 @@ class KlipperRepositoryImpl(
                 throw IOException("Could not remove the previous Klipper API socket")
             }
 
+            state.value = KlipperProgress(KlipperStage.Starting, "Preparing printer serial connection", manifest.revision)
+            waitForUsbSerialBridgeIfConfigured()
             state.value = KlipperProgress(KlipperStage.Starting, "Starting Klipper host process", manifest.revision)
             val command = listOf(
                 guestPath(File(venv, "bin/python")),
@@ -428,6 +430,42 @@ class KlipperRepositoryImpl(
         return "/var/lib/miracle/$relative"
     }
 
+    /**
+     * The Android USB serial driver exposes the printer MCU through a PTY symlink
+     * at filesDir/serialpipe. Klipper must use /dev/ttyOcto4a for this bridge.
+     *
+     * The PTY is created asynchronously by the USB foreground service. Starting
+     * Klipper before it exists causes PRoot to omit the bind mount entirely, so
+     * Klipper can never reach the MCU even though the Android build succeeds.
+     */
+    private fun isUsbSerialBridgeConfigured(): Boolean {
+        if (!configFile.isFile) return false
+        return Regex("""(?im)^\\s*serial\\s*:\\s*/dev/ttyOcto4a\\s*(?:#.*)?$""")
+            .containsMatchIn(configFile.readText())
+    }
+
+    private fun waitForUsbSerialBridgeIfConfigured() {
+        if (!isUsbSerialBridgeConfigured()) return
+
+        val serialPipe = File(context.filesDir, "serialpipe")
+        val deadline = System.currentTimeMillis() + 10_000L
+        while (System.currentTimeMillis() < deadline) {
+            if (serialPipe.exists()) return
+            try {
+                Thread.sleep(100L)
+            } catch (interrupted: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw IOException("Interrupted while waiting for the Android USB serial bridge", interrupted)
+            }
+        }
+
+        throw IOException(
+            "The printer configuration uses /dev/ttyOcto4a, but the Android USB serial bridge " +
+                "did not become ready. Connect the printer with a USB-OTG data cable, grant " +
+                "Miracle Klipper USB permission, and retry. The expected bridge is filesDir/serialpipe."
+        )
+    }
+
     private fun createProotProcess(command: List<String>, workingDirectory: String): ProcessBuilder {
         val bootstrapBin = ProotRuntime.nativeDirectory(context)
         val proot = ProotRuntime.proot(context)
@@ -446,7 +484,14 @@ class KlipperRepositoryImpl(
             .filter { File(it).exists() }
             .forEach { args.addAll(listOf("-b", it)) }
         val serialPipe = File(context.filesDir, "serialpipe")
-        if (serialPipe.exists()) args.addAll(listOf("-b", "${serialPipe.absolutePath}:/dev/ttyOcto4a"))
+        if (serialPipe.exists()) {
+            args.addAll(listOf("-b", "${serialPipe.absolutePath}:/dev/ttyOcto4a"))
+        } else if (isUsbSerialBridgeConfigured()) {
+            // Never launch Klipper with a silent missing-device bind mount.
+            throw IOException(
+                "USB serial bridge /dev/ttyOcto4a is configured but filesDir/serialpipe is missing"
+            )
+        }
         val fakeProcStat = ProotRuntime.fakeProcStat(context)
         if (fakeProcStat.isFile) args.addAll(listOf("-b", "${fakeProcStat.absolutePath}:/proc/stat"))
         args.addAll(listOf("-L", "--link2symlink", "-b", "${sharedDirectory.absolutePath}:/var/lib/miracle"))
