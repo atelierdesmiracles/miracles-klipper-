@@ -83,7 +83,7 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
             synchronized(this@VirtualSerialDriver) {
                 if (ptyStartCancelled) return@synchronized
                 try {
-                    pty.runPtyThread()
+                    pty.runPtyThread(context.filesDir.absolutePath)
                     ptyThreadStarted = true
                 } catch (failure: Exception) {
                     ptyThreadStarted = false

@@ -14,6 +14,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.navigation.findNavController
 import androidx.navigation.ui.setupWithNavController
@@ -42,7 +43,14 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         setSupportActionBar(my_toolbar)
         bottomNavigationBar.setupWithNavController(findNavController(R.id.navHost))
-        vsp.updateDevicesList(OctoPrintService.BROADCAST_SERVICE_USB_GOT_ACCESS)
+
+        // Start the USB foreground service before any USB permission request.
+        val usbServiceIntent = Intent(this, OctoPrintService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ContextCompat.startForegroundService(this, usbServiceIntent)
+        } else {
+            startService(usbServiceIntent)
+        }
 
         // Required for acquiring wakelock
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(packageName) && mainPreferences.warnDisableBatteryOptimization) {

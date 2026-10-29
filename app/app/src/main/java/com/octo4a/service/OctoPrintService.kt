@@ -164,6 +164,8 @@ class OctoPrintService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         startForegroundNotification()
+        // This service owns the USB permission receiver; enumerate only after it is registered.
+        virtualSerialDriver.updateDevicesList(BROADCAST_SERVICE_USB_GOT_ACCESS)
         if (!runtimeStarted) {
             runtimeStarted = true
             startupJob = scope.launch {

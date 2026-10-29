@@ -8,7 +8,7 @@ class VSPPty {
     external fun setVSPListener(listener: VSPListener)
     external fun writeData(data: ByteArray)
     external fun getBaudrate(data: Int): Int
-    external fun runPtyThread()
+    external fun runPtyThread(filesDirectory: String)
     external fun cancelPtyThread()
     external fun createEventPipe()
 

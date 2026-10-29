@@ -29,6 +29,7 @@ jclass serialDataClass;
 jmethodID serialDataConstructor;
 pthread_t ptyThreadHandle = 0;
 int ptyWakePipe[2] = {-1, -1};
+static std::string serialPipePath;
 
 static jint getBaudrate(speed_t baudrate)
 {
@@ -128,6 +129,7 @@ extern "C"
             if (jvm->AttachCurrentThread(&gEnv, &args) != 0)
             {
                 __android_log_print(ANDROID_LOG_ERROR, "GetEnv:", " Failed to attach\n");
+                return;
             }
         }
         else if (getEnvStat == JNI_OK)
@@ -139,17 +141,44 @@ extern "C"
             __android_log_print(ANDROID_LOG_ERROR, "GetEnv:", " version not supported\n");
         }
 
-        jbyteArray serialDataArr = gEnv->NewByteArray(dataSize);
-        gEnv->SetByteArrayRegion(serialDataArr, 0, dataSize, (jbyte *)val);
-        jobject object = gEnv->NewObject(serialDataClass, serialDataConstructor, serialDataArr, static_cast<jint>(baudrate));
+        jbyteArray serialDataArr = gEnv->NewByteArray(static_cast<jsize>(dataSize));
+        if (serialDataArr == nullptr)
+        {
+            if (getEnvStat == JNI_EDETACHED)
+                jvm->DetachCurrentThread();
+            return;
+        }
+        gEnv->SetByteArrayRegion(serialDataArr, 0, static_cast<jsize>(dataSize), reinterpret_cast<const jbyte *>(val));
 
-        gEnv->CallVoidMethod(storeWeakListener, stringCallback, object);
-        gEnv->DeleteLocalRef(object);
+        // SerialData constructor: byte array plus baudrate and four termios flags.
+        jobject object = gEnv->NewObject(
+            serialDataClass,
+            serialDataConstructor,
+            serialDataArr,
+            static_cast<jint>(getBaudrate(baudrate)),
+            static_cast<jint>(cIflag),
+            static_cast<jint>(cOflag),
+            static_cast<jint>(cCflag),
+            static_cast<jint>(CLflag)
+        );
+        gEnv->DeleteLocalRef(serialDataArr);
+
+        jobject listener = gEnv->NewLocalRef(storeWeakListener);
+        if (object != nullptr && listener != nullptr && stringCallback != nullptr)
+            gEnv->CallVoidMethod(listener, stringCallback, object);
+        if (object != nullptr)
+            gEnv->DeleteLocalRef(object);
+        if (listener != nullptr)
+            gEnv->DeleteLocalRef(listener);
 
         if (gEnv->ExceptionCheck())
+        {
+            __android_log_print(ANDROID_LOG_ERROR, "GetEnv:", "Exception in USB serial callback");
             gEnv->ExceptionDescribe();
-
-        jvm->DetachCurrentThread();
+            gEnv->ExceptionClear();
+        }
+        if (getEnvStat == JNI_EDETACHED)
+            jvm->DetachCurrentThread();
     }
 }
 
@@ -166,9 +195,24 @@ static void* ptyThread(void* irrelevant)
     }
     __android_log_print(ANDROID_LOG_VERBOSE, "TAG", "PtyThread called openpty");
 
-    unlink("/data/data/com.octo4a/files/serialpipe");
-    symlink(name, "/data/data/com.octo4a/files/serialpipe");
-    __android_log_print(ANDROID_LOG_VERBOSE, "TAG", "SYMLIKED");
+    if (serialPipePath.empty())
+    {
+        __android_log_print(ANDROID_LOG_ERROR, "TAG", "Serial pipe path was not provided");
+        close(master);
+        master = -1;
+        close(slave);
+        return nullptr;
+    }
+    unlink(serialPipePath.c_str());
+    if (symlink(name, serialPipePath.c_str()) != 0)
+    {
+        __android_log_print(ANDROID_LOG_ERROR, "TAG", "Could not create serialpipe symlink: %s", strerror(errno));
+        close(master);
+        master = -1;
+        close(slave);
+        return nullptr;
+    }
+    __android_log_print(ANDROID_LOG_INFO, "TAG", "USB serial PTY linked at %s", serialPipePath.c_str());
 
     // Prepare fds
     fd_set rfds;
@@ -198,8 +242,12 @@ static void* ptyThread(void* irrelevant)
         {
             if (errno == EINTR)
                 continue;
-            __android_log_print(ANDROID_LOG_ERROR, "TAG", "read error");
+            __android_log_print(ANDROID_LOG_ERROR, "TAG", "read error: %s", strerror(errno));
             break;
+        }
+        else if (nread == 0)
+        {
+            continue;
         }
         else
         {
@@ -258,7 +306,8 @@ static void* ptyThread(void* irrelevant)
     close(master);
     master = -1;
     close(slave);
-    unlink("/data/data/com.octo4a/files/serialpipe");
+    if (!serialPipePath.empty())
+        unlink(serialPipePath.c_str());
     return nullptr;
 }
 
@@ -267,10 +316,19 @@ extern "C"
 
     JNIEXPORT void JNICALL Java_com_octo4a_serial_VSPPty_writeData(JNIEnv *env, jobject obj, jbyteArray data)
     {
+        if (master < 0)
+        {
+            __android_log_print(ANDROID_LOG_WARN, "TAG", "Ignoring serial write because PTY is not open");
+            return;
+        }
         jsize numBytes = env->GetArrayLength(data);
-        jbyte *lib = env->GetByteArrayElements(data, 0);
-        write(master, lib, numBytes);
-        //    fflush(master);
+        jbyte *lib = env->GetByteArrayElements(data, nullptr);
+        if (lib == nullptr)
+            return;
+        const ssize_t written = write(master, lib, static_cast<size_t>(numBytes));
+        if (written < 0)
+            __android_log_print(ANDROID_LOG_ERROR, "TAG", "PTY write failed: %s", strerror(errno));
+        env->ReleaseByteArrayElements(data, lib, JNI_ABORT);
     }
 
     JNIEXPORT jint JNICALL Java_com_octo4a_serial_VSPPty_getBaudrate(JNIEnv *env, jobject obj, jint data)
@@ -294,8 +352,19 @@ extern "C"
             return;
     }
 
-    JNIEXPORT void JNICALL Java_com_octo4a_serial_VSPPty_runPtyThread(JNIEnv *env, jobject instance)
+    JNIEXPORT void JNICALL Java_com_octo4a_serial_VSPPty_runPtyThread(JNIEnv *env, jobject instance, jstring filesDirectory)
     {
+        if (filesDirectory == nullptr)
+        {
+            __android_log_print(ANDROID_LOG_ERROR, "TAG", "App files directory is null");
+            return;
+        }
+        const char *directory = env->GetStringUTFChars(filesDirectory, nullptr);
+        if (directory == nullptr)
+            return;
+        serialPipePath = std::string(directory) + "/serialpipe";
+        env->ReleaseStringUTFChars(filesDirectory, directory);
+
         if (ptyThreadHandle == 0) {
             if (pipe(ptyWakePipe) != 0) {
                 __android_log_print(ANDROID_LOG_ERROR, "TAG", "Could not create PTY stop pipe");
