@@ -642,8 +642,8 @@ class KlipperWebInterfaceRepositoryImpl(
                 false
             } else {
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
-                body.contains("\\\"moonraker_version\\\":") &&
-                    !body.contains("\\\"error\\\":")
+                body.contains("\"moonraker_version\":") &&
+                    !body.contains("\"error\":")
             }
         } finally {
             connection.disconnect()
