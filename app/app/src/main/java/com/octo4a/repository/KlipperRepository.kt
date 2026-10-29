@@ -291,21 +291,43 @@ class KlipperRepositoryImpl(
             }
             startRuntimeOutputReader(active)
             startRuntimeMonitor(active)
-            Thread.sleep(400)
+            // A live process is not sufficient: Moonraker can only connect once
+            // Klipper has created the shared Unix-domain API socket.
+            val socketDeadline = System.currentTimeMillis() + SOCKET_START_TIMEOUT_MS
+            while (System.currentTimeMillis() < socketDeadline && !socketFile.exists()) {
+                val stillRunning = synchronized(processLock) {
+                    activeProcess === active && processIsAlive(process)
+                }
+                if (!stillRunning) {
+                    val message = state.value.message.ifBlank {
+                        "Klipper exited before creating klippy.sock; see printer_data/logs/klippy.log"
+                    }
+                    throw IOException(message)
+                }
+                Thread.sleep(SOCKET_POLL_INTERVAL_MS)
+            }
 
             val stillRunning = synchronized(processLock) {
                 activeProcess === active && processIsAlive(process)
             }
-            if (stillRunning) {
-                state.value = KlipperProgress(
-                    KlipperStage.Running,
-                    "Klipper host process is running; printer readiness is checked in a later phase",
-                    manifest.revision
-                )
-            } else {
-                val message = state.value.message.ifBlank { "Klipper stopped during startup; see its log" }
+            if (!stillRunning) {
+                val message = state.value.message.ifBlank {
+                    "Klipper stopped during startup; see printer_data/logs/klippy.log"
+                }
                 throw IOException(message)
             }
+            if (!socketFile.exists()) {
+                throw IOException(
+                    "Klipper is running but did not create printer_data/comms/klippy.sock " +
+                        "within ${SOCKET_START_TIMEOUT_MS / 1000} seconds; Moonraker cannot connect. " +
+                        "See printer_data/logs/klippy.log"
+                )
+            }
+            state.value = KlipperProgress(
+                KlipperStage.Running,
+                "Klipper process is running and klippy.sock exists; check MCU readiness in klippy.log",
+                manifest.revision
+            )
         } catch (cancelled: CancellationException) {
             startedProcess?.let { abortStartupProcess(it) }
             throw cancelled
@@ -588,6 +610,11 @@ class KlipperRepositoryImpl(
     }
 
     private class ActiveKlipperProcess(val process: Process, @Volatile var stopRequested: Boolean = false)
+
+    companion object {
+        private const val SOCKET_START_TIMEOUT_MS = 15000L
+        private const val SOCKET_POLL_INTERVAL_MS = 250L
+    }
 }
 
 internal object KlipperPrinterConfigurationValidator {
