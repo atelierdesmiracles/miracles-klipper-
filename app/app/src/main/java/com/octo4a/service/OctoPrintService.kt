@@ -174,19 +174,33 @@ class OctoPrintService : LifecycleService() {
 
     private fun logUsbInventory(manager: UsbManager, reason: String) {
         val devices = manager.deviceList.values
+        val hostSupported = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_USB_HOST)
+        val header = "USB diagnostic (" + reason + "): Android=" + Build.VERSION.SDK_INT +
+            ", usbHostFeature=" + hostSupported + ", visibleDevices=" + devices.size
+
+        // Keep diagnostics in both Android Logcat and the in-app log panel so the user
+        // can share evidence without needing ADB.
+        Log.i(LOG_TAG, header)
+        logger.log(this, LogType.SYSTEM) { header }
+
         if (devices.isEmpty()) {
-            Log.w(LOG_TAG, "USB scan (" + reason + "): no USB devices visible to Android. Check USB host/OTG, adapter, cable, and board power.")
+            val message = "USB diagnostic: Android exposes no USB device to Miracle Klipper. " +
+                "Test a USB mouse/keyboard with the same OTG adapter, check OTG/USB-host settings, " +
+                "try a data-capable cable, and ensure the printer board is powered."
+            Log.w(LOG_TAG, message)
+            logger.log(this, LogType.SYSTEM) { message }
             return
         }
+
         devices.forEach { device ->
-            Log.i(
-                LOG_TAG,
-                "USB scan (" + reason + "): name=" + device.deviceName +
-                    ", VID=0x" + device.vendorId.toString(16) +
-                    ", PID=0x" + device.productId.toString(16) +
-                    ", class=" + device.deviceClass + ", subclass=" + device.deviceSubclass +
-                    ", interfaces=" + device.interfaceCount
-            )
+            val message = "USB device visible: name=" + device.deviceName +
+                ", VID=0x" + device.vendorId.toString(16) +
+                ", PID=0x" + device.productId.toString(16) +
+                ", class=" + device.deviceClass + ", subclass=" + device.deviceSubclass +
+                ", interfaces=" + device.interfaceCount +
+                ", permission=" + manager.hasPermission(device)
+            Log.i(LOG_TAG, message)
+            logger.log(this, LogType.SYSTEM) { message }
         }
     }
 
