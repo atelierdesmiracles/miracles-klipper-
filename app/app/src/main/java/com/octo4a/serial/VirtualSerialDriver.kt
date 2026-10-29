@@ -181,8 +181,12 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
     }
 
     fun updateDevicesList(intent: String): String? {
-        connectedDevices.value = usbManager.deviceList.map {
-            // Try to autodetect driver
+        val visibleDevices = usbManager.deviceList
+        logger.log(this) {
+            "USB serial scan: visibleDevices=${visibleDevices.size}, selected=${selectedDevice?.device?.deviceName ?: "none"}"
+        }
+        connectedDevices.value = visibleDevices.map {
+            // Try to autodetect driver. Android USB permission is separate from driver detection.
             var driverClass = when (printerProber.probeDevice(it.value)) {
                 is Cp21xxSerialDriver -> SerialDriverClass.CP21XX
                 is FtdiSerialDriver -> SerialDriverClass.FTDI
@@ -193,6 +197,9 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
             }
 
             val autoDetected = driverClass != SerialDriverClass.UNKNOWN
+            logger.log(this) {
+                "USB serial candidate: name=${it.value.deviceName}, VID=0x${it.value.vendorId.toString(16)}, PID=0x${it.value.productId.toString(16)}, interfaces=${it.value.interfaceCount}, driver=${driverClass.name}, autoDetected=${autoDetected}, permission=${usbManager.hasPermission(it.value)}"
+            }
 
             if (it.value.productId == prefs.defaultPrinterPid && it.value.vendorId == prefs.defaultPrinterVid) {
                 if (!prefs.defaultPrinterCustomDriver.isNullOrBlank()) {
@@ -234,10 +241,29 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
                     if (port?.isOpen == true) {
                         port?.close()
                     }
-                    connection = usbManager.openDevice(selectedDevice?.device)
-                    port = selectedDevice!!.ports.first()
+                    val activeDriver = selectedDevice
+                        ?: throw IllegalStateException("No USB serial driver selected")
+                    val activePort = activeDriver.ports.firstOrNull()
+                        ?: throw IllegalStateException("USB serial driver exposes no ports")
+                    val activeDevice = activeDriver.device
+                    if (!usbManager.hasPermission(activeDevice)) {
+                        logger.log(this, "USB permission missing when opening serial port; requesting selection again")
+                        handleDeviceDetached()
+                        updateDevicesList("")
+                        return
+                    }
+                    connection = usbManager.openDevice(activeDevice)
+                        ?: throw IllegalStateException(
+                            "Android UsbManager.openDevice returned null for " +
+                                "${activeDevice.deviceName} (VID=0x${activeDevice.vendorId.toString(16)}, PID=0x${activeDevice.productId.toString(16)}). Check USB permission, OTG power, cable, and board state."
+                        )
+                    port = activePort
 
+                    logger.log(this) {
+                        "Opening USB serial port: device=${activeDevice.deviceName}, driver=${activeDriver.javaClass.simpleName}, ports=${activeDriver.ports.size}, baud=${pty.getBaudrate(baudrate)}"
+                    }
                     port?.open(connection)
+                    logger.log(this) { "USB serial port opened successfully: device=${activeDevice.deviceName}" }
                     // @TODO get it from flags
                     port?.setParameters(
                         pty.getBaudrate(baudrate),
