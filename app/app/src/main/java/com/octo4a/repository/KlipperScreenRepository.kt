@@ -186,7 +186,7 @@ class KlipperScreenRepositoryImpl(
                     revision
                 )
                 runInRootfs(
-                    listOf("/usr/bin/python3", "-m", "venv", guestPath(virtualEnvironment)),
+                    listOf("/usr/bin/python3", "-m", "venv", "--system-site-packages", guestPath(virtualEnvironment)),
                     "Create KlipperScreen virtual environment"
                 )
                 runInRootfs(
