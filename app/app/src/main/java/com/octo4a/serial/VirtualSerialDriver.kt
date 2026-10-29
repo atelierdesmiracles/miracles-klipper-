@@ -107,12 +107,12 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
         ptyThread = null
     }
 
-    fun handleDeviceDetached(detachedDevice: UsbDevice? = null) {
-        val activeDevice = selectedDevice?.device
-        if (detachedDevice != null && activeDevice != null && detachedDevice.deviceName != activeDevice.deviceName) {
-            return
-        }
-
+    /**
+     * Close the active serial session without forgetting the selected USB device.
+     * Klipper can reopen the port after a baud-rate change or recoverable I/O error.
+     */
+    @Synchronized
+    private fun closeSerialSession() {
         serialInputManager?.stop()
         serialInputManager = null
         try {
@@ -127,9 +127,19 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
         }
         port = null
         connection = null
+        currentBaudrate = -1
+    }
+
+    @Synchronized
+    fun handleDeviceDetached(detachedDevice: UsbDevice? = null) {
+        val activeDevice = selectedDevice?.device
+        if (detachedDevice != null && activeDevice != null &&
+            detachedDevice.deviceName != activeDevice.deviceName) {
+            return
+        }
+        closeSerialSession()
         selectedDevice = null
         requestedDevice = null
-        currentBaudrate = -1
     }
 
     fun shutdown() {
@@ -145,7 +155,9 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
     fun tryToSelectDevice(device: ConnectedUsbDevice) {
         val devices = connectedDevices.value
         if (device.driverClass != SerialDriverClass.UNKNOWN) {
+            if (selectedDevice?.device?.deviceName == device.device.deviceName) return
             if (!usbManager.hasPermission(device.device)) {
+                if (requestedDevice?.device?.deviceName == device.device.deviceName) return
                 val intent = Intent(OctoPrintService.BROADCAST_SERVICE_USB_GOT_ACCESS)
                     .setPackage(context.packageName)
                 requestedDevice = device
@@ -161,12 +173,14 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
                 logger.log(this) { "REQUESTED DEVICE" }
                 Toast.makeText(context, context.getString(R.string.requesting_usb_permission), Toast.LENGTH_LONG).show()
             } else {
+                // Release the previous controller before switching to another USB device.
+                if (selectedDevice?.device?.deviceName != device.device.deviceName) closeSerialSession()
                 selectedDevice = device.createDriver()
                 prefs.defaultPrinterCustomDriver = device.driverClass.name
                 prefs.defaultPrinterPid = device.productId
                 prefs.defaultPrinterVid = device.vendorId
                 devices.forEach {
-                    it.isSelected = it.vendorId == device.vendorId && it.productId == device.productId
+                    it.isSelected = it.device.deviceName == device.device.deviceName
                 }
 
                 connectedDevices.value = listOf()
@@ -185,9 +199,16 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
         logger.log(this) {
             "USB serial scan: visibleDevices=${visibleDevices.size}, selected=${selectedDevice?.device?.deviceName ?: "none"}"
         }
-        connectedDevices.value = visibleDevices.map {
-            // Try to autodetect driver. Android USB permission is separate from driver detection.
-            var driverClass = when (printerProber.probeDevice(it.value)) {
+
+        val previousDevice = selectedDevice?.device
+        if (previousDevice != null && visibleDevices.values.none { it.deviceName == previousDevice.deviceName }) {
+            logger.log(this) { "Previously selected USB device disappeared: ${previousDevice.deviceName}" }
+            handleDeviceDetached(previousDevice)
+        }
+
+        connectedDevices.value = visibleDevices.map { entry ->
+            val usbDevice = entry.value
+            var driverClass = when (printerProber.probeDevice(usbDevice)) {
                 is Cp21xxSerialDriver -> SerialDriverClass.CP21XX
                 is FtdiSerialDriver -> SerialDriverClass.FTDI
                 is ProlificSerialDriver -> SerialDriverClass.PROLIFIC
@@ -195,35 +216,46 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
                 is CdcAcmSerialDriver -> SerialDriverClass.CDC
                 else -> SerialDriverClass.UNKNOWN
             }
-
             val autoDetected = driverClass != SerialDriverClass.UNKNOWN
-            logger.log(this) {
-                "USB serial candidate: name=${it.value.deviceName}, VID=0x${it.value.vendorId.toString(16)}, PID=0x${it.value.productId.toString(16)}, interfaces=${it.value.interfaceCount}, driver=${driverClass.name}, autoDetected=${autoDetected}, permission=${usbManager.hasPermission(it.value)}"
-            }
 
-            if (it.value.productId == prefs.defaultPrinterPid && it.value.vendorId == prefs.defaultPrinterVid) {
-                if (!prefs.defaultPrinterCustomDriver.isNullOrBlank()) {
+            if (usbDevice.productId == prefs.defaultPrinterPid &&
+                usbDevice.vendorId == prefs.defaultPrinterVid &&
+                !prefs.defaultPrinterCustomDriver.isNullOrBlank()) {
+                try {
                     driverClass = SerialDriverClass.valueOf(prefs.defaultPrinterCustomDriver!!)
+                } catch (failure: IllegalArgumentException) {
+                    logger.logError(this, "Ignoring invalid saved USB driver preference", failure)
                 }
             }
 
-            ConnectedUsbDevice(it.value.deviceName, it.value.productId, it.value.vendorId, driverClass, false, autoDetected, it.value)
+            logger.log(this) {
+                "USB serial candidate: name=${usbDevice.deviceName}, VID=0x${usbDevice.vendorId.toString(16)}, PID=0x${usbDevice.productId.toString(16)}, interfaces=${usbDevice.interfaceCount}, driver=${driverClass.name}, autoDetected=$autoDetected, permission=${usbManager.hasPermission(usbDevice)}"
+            }
+            ConnectedUsbDevice(
+                usbDevice.deviceName, usbDevice.productId, usbDevice.vendorId,
+                driverClass, usbDevice.deviceName == selectedDevice?.device?.deviceName,
+                autoDetected, usbDevice
+            )
         }
 
-        // prefer last device over autodetected one
-        connectedDevices.value.forEach {
-            if (it.productId == prefs.defaultPrinterPid && it.vendorId == prefs.defaultPrinterVid && it.driverClass != SerialDriverClass.UNKNOWN) {
-                tryToSelectDevice(it)
+        // Keep an active device selected if it is still connected. This avoids silently
+        // switching printers when another device with the same VID/PID is attached.
+        if (selectedDevice != null) return ""
+
+        val candidates = connectedDevices.value.filter { it.driverClass != SerialDriverClass.UNKNOWN }
+        val savedCandidates = candidates.filter {
+            it.vendorId == prefs.defaultPrinterVid && it.productId == prefs.defaultPrinterPid
+        }
+        when {
+            savedCandidates.size == 1 -> tryToSelectDevice(savedCandidates.single())
+            savedCandidates.size > 1 -> logger.log(this) {
+                "Saved USB VID/PID matches ${savedCandidates.size} devices; refusing ambiguous automatic selection"
+            }
+            candidates.size == 1 -> tryToSelectDevice(candidates.single())
+            candidates.size > 1 -> logger.log(this) {
+                "Found ${candidates.size} compatible USB serial devices; waiting for manual selection"
             }
         }
-
-        // Use automatically detected one as second choice
-        if (selectedDevice == null) {
-            connectedDevices.value.firstOrNull { it.driverClass != SerialDriverClass.UNKNOWN }?.apply {
-                tryToSelectDevice(this)
-            }
-        }
-
         return ""
     }
 
@@ -238,9 +270,9 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
                         if (selectedDevice == null) return
                     }
 
-                    if (port?.isOpen == true) {
-                        port?.close()
-                    }
+                    // Close both the serial port and USB connection before reopening,
+                    // including on baud-rate changes.
+                    closeSerialSession()
                     val activeDriver = selectedDevice
                         ?: throw IllegalStateException("No USB serial driver selected")
                     val activePort = activeDriver.ports.firstOrNull()
@@ -295,6 +327,7 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
             }
         } catch (e: Exception) {
             logger.logError(this, "USB serial communication failed", e)
+            closeSerialSession()
         }
     }
 
@@ -305,6 +338,7 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
     override fun onRunError(e: Exception?) {
         if (e != null) {
             logger.logError(this, "USB serial reader stopped unexpectedly", e)
+            closeSerialSession()
         }
     }
 }
