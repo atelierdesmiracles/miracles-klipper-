@@ -509,7 +509,15 @@ class KlipperWebInterfaceRepositoryImpl(
             JsonObject()
         }
         when (client) {
-            KlipperWebInterface.Mainsail -> config.addProperty("instancesDB", "browser")
+            KlipperWebInterface.Mainsail -> {
+                // Miracle Klipper serves Mainsail and proxies Moonraker through the same
+                // origin on port 8080. Browser-backed instances enable Mainsail Remote
+                // Mode and incorrectly require users to add a printer and configure CORS.
+                config.addProperty("instancesDB", "moonraker")
+                config.add("hostname", com.google.gson.JsonNull.INSTANCE)
+                config.add("port", com.google.gson.JsonNull.INSTANCE)
+                config.add("instances", JsonArray())
+            }
             KlipperWebInterface.Fluidd -> config.add("endpoints", JsonArray())
         }
         configFile.writeText(Gson().toJson(config))
