@@ -37,6 +37,8 @@ class OctoPrintService : LifecycleService() {
     private var startupJob: Job? = null
     private var receiverRegistered = false
     private var runtimeStarted = false
+    private var usbMonitorJob: Job? = null
+    @Volatile private var lastUsbFingerprint: String? = null
     private val notificationManager by lazy { getSystemService(NOTIFICATION_SERVICE) as NotificationManager }
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -139,6 +141,55 @@ class OctoPrintService : LifecycleService() {
         // The legacy OctoPrint event pipe is intentionally not observed by Miracle Klipper.
     }
 
+    /**
+     * USB_DEVICE_ATTACHED is primarily an activity-launch intent on Android and is not
+     * reliably delivered to a dynamically registered receiver on every device/ROM.
+     * Poll UsbManager.deviceList while the foreground service is alive so attachment
+     * detection does not depend on a supported VID/PID in device_filter.xml.
+     */
+    private fun startUsbMonitor() {
+        if (usbMonitorJob?.isActive == true) return
+        val manager = getSystemService(Context.USB_SERVICE) as UsbManager
+        lastUsbFingerprint = usbFingerprint(manager)
+        logUsbInventory(manager, "initial scan")
+        usbMonitorJob = scope.launch {
+            while (isActive) {
+                delay(1500)
+                val currentFingerprint = usbFingerprint(manager)
+                if (currentFingerprint != lastUsbFingerprint) {
+                    lastUsbFingerprint = currentFingerprint
+                    logUsbInventory(manager, "device list changed")
+                    virtualSerialDriver.updateDevicesList(BROADCAST_SERVICE_USB_GOT_ACCESS)
+                }
+            }
+        }
+    }
+
+    private fun usbFingerprint(manager: UsbManager): String = manager.deviceList.values
+        .sortedBy { it.deviceName }
+        .joinToString(separator = "|") { device ->
+            device.deviceName + ":" + device.vendorId + ":" + device.productId + ":" +
+                device.deviceClass + ":" + device.deviceSubclass + ":" + device.interfaceCount
+        }
+
+    private fun logUsbInventory(manager: UsbManager, reason: String) {
+        val devices = manager.deviceList.values
+        if (devices.isEmpty()) {
+            Log.w(LOG_TAG, "USB scan (" + reason + "): no USB devices visible to Android. Check USB host/OTG, adapter, cable, and board power.")
+            return
+        }
+        devices.forEach { device ->
+            Log.i(
+                LOG_TAG,
+                "USB scan (" + reason + "): name=" + device.deviceName +
+                    ", VID=0x" + device.vendorId.toString(16) +
+                    ", PID=0x" + device.productId.toString(16) +
+                    ", class=" + device.deviceClass + ", subclass=" + device.deviceSubclass +
+                    ", interfaces=" + device.interfaceCount
+            )
+        }
+    }
+
     fun verifyPtyRunning() {
         val ptyFile = File(filesDir, "serialpipe")
         if (!ptyFile.exists()) {
@@ -149,6 +200,7 @@ class OctoPrintService : LifecycleService() {
 
     override fun onDestroy() {
         startupJob?.cancel()
+        usbMonitorJob?.cancel()
         serviceJob.cancel()
         cleanup("OctoPrint", "Stop server") { handlerRepository.stopOctoPrint() }
         cleanup("SSH", "Stop service") { handlerRepository.stopSSH() }
@@ -166,6 +218,7 @@ class OctoPrintService : LifecycleService() {
         startForegroundNotification()
         // This service owns the USB permission receiver; enumerate only after it is registered.
         virtualSerialDriver.updateDevicesList(BROADCAST_SERVICE_USB_GOT_ACCESS)
+        startUsbMonitor()
         if (!runtimeStarted) {
             runtimeStarted = true
             startupJob = scope.launch {
