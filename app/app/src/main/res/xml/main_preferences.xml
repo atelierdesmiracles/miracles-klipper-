@@ -106,6 +106,21 @@
                 app:iconSpaceReserved="false"
                 app:summary="Stops the KlipperScreen display process." />
     </PreferenceCategory>
+    <PreferenceCategory
+            app:title="Telegram — notifications et contrôle"
+            app:summary="Installe et lance le bot Moonraker Telegram dans Debian, sans init.d ni root Android."
+            app:iconSpaceReserved="false">
+        <Preference
+                app:title="Configurer / installer / démarrer Telegram"
+                app:key="configureTelegramBot"
+                app:iconSpaceReserved="false"
+                app:summary="Saisis localement le jeton BotFather et ton identifiant de chat. Le jeton n’est pas envoyé à GitHub." />
+        <Preference
+                app:title="Arrêter le bot Telegram"
+                app:key="stopTelegramBot"
+                app:iconSpaceReserved="false"
+                app:summary="Arrête le processus Telegram géré par Miracle Klipper." />
+    </PreferenceCategory>
     <Preference
             app:title="Install plugin extras"
             app:key="installPluginExtras"
