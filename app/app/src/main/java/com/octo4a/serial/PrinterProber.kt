@@ -31,8 +31,14 @@ val cdcDevices = listOf(
     UsbDeviceId(9025, 32824),
     UsbDeviceId(9025, 32825),
 
-    // Teensy (who tf builds printers with those anyways?)
+    // Teensy
     UsbDeviceId(1155, 5824),
+
+    // BIGTREETECH printer boards exposed as USB CDC ACM.
+    // These IDs are already present in res/xml/device_filter.xml; keep the
+    // serial-driver probe table in sync so they do not appear as UNKNOWN.
+    UsbDeviceId(1155, 22336), // BTT SKR Mini E3
+    UsbDeviceId(7504, 24910), // BTT SKR 1.3
 
     // Atmel LUFA
     UsbDeviceId(1003, 8260),
