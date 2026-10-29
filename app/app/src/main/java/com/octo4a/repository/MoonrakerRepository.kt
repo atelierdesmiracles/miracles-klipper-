@@ -941,7 +941,8 @@ internal object MoonrakerConfigurationValidator {
 
     fun isSafeLocalConfiguration(configuration: String): Boolean = isConfiguration(configuration, true)
 
-    fun isLegacyLocalConfiguration(configuration: String): Boolean =\n        isConfiguration(configuration, false, true) || isConfiguration(configuration, true, true)
+    fun isLegacyLocalConfiguration(configuration: String): Boolean =
+        isConfiguration(configuration, false, true) || isConfiguration(configuration, true, true)
 
     private fun isConfiguration(
         configuration: String,
