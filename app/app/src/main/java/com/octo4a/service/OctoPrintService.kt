@@ -95,12 +95,8 @@ class OctoPrintService : LifecycleService() {
         override fun onReceive(context: Context, intent: Intent?) {
             val action = intent?.action
             if (action == EVENT_USB_ATTACHED || action == EVENT_USB_DETACHED) {
-                val eventDevice = if (Build.VERSION.SDK_INT >= 33) {
-                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
-                }
+                @Suppress("DEPRECATION")
+                val eventDevice = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
                 val eventName = if (action == EVENT_USB_ATTACHED) "ATTACHED" else "DETACHED"
                 val eventMessage = if (eventDevice != null) {
                     "USB broadcast $eventName: name=${eventDevice.deviceName}, VID=0x${eventDevice.vendorId.toString(16)}, PID=0x${eventDevice.productId.toString(16)}, interfaces=${eventDevice.interfaceCount}"
@@ -120,12 +116,8 @@ class OctoPrintService : LifecycleService() {
                 }
 
                 EVENT_USB_DETACHED -> {
-                    val detachedDevice = if (Build.VERSION.SDK_INT >= 33) {
-                        intent?.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent?.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
-                    }
+                    @Suppress("DEPRECATION")
+                    val detachedDevice = intent?.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
                     virtualSerialDriver.handleDeviceDetached(detachedDevice)
                     virtualSerialDriver.updateDevicesList(BROADCAST_SERVICE_USB_GOT_ACCESS)
                     handlerRepository.usbDetached()
