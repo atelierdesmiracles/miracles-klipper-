@@ -31,8 +31,8 @@ val cdcDevices = listOf(
     UsbDeviceId(9025, 32824),
     UsbDeviceId(9025, 32825),
 
-    // Teensy
-    UsbDeviceId(1155, 5824),
+    // Teensy (VID 0x16C0 = 5824, PID 0x0483 = 1155; vendor/product order matters)
+    UsbDeviceId(5824, 1155),
 
     // BIGTREETECH printer boards exposed as USB CDC ACM.
     // These IDs are already present in res/xml/device_filter.xml; keep the
