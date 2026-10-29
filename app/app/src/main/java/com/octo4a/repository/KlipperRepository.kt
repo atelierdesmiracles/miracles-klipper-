@@ -440,7 +440,7 @@ class KlipperRepositoryImpl(
      */
     private fun isUsbSerialBridgeConfigured(): Boolean {
         if (!configFile.isFile) return false
-        return Regex("""(?im)^\\s*serial\\s*:\\s*/dev/ttyOcto4a\\s*(?:#.*)?$""")
+        return Regex("""(?im)^\s*serial\s*:\s*/dev/ttyOcto4a\s*(?:#.*)?$""")
             .containsMatchIn(configFile.readText())
     }
 
