@@ -27,6 +27,8 @@ import com.octo4a.repository.LinuxEnvironmentStage
 import com.octo4a.repository.KlipperRepository
 import com.octo4a.repository.KlipperScreenRepository
 import com.octo4a.repository.KlipperScreenStage
+import com.octo4a.repository.TelegramBotRepository
+import com.octo4a.repository.TelegramBotStage
 import com.octo4a.repository.KlipperStage
 import com.octo4a.repository.MoonrakerRepository
 import com.octo4a.repository.MoonrakerStage
@@ -58,6 +60,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private val klipper: KlipperRepository by inject()
     private val klipperScreen: KlipperScreenRepository by inject()
     private val moonraker: MoonrakerRepository by inject()
+    private val telegramBot: TelegramBotRepository by inject()
 
     // Camera permission request
     private val hasCameraPermission: Boolean
@@ -99,6 +102,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private val installXServerXSDL by lazy { findPreference<Preference>("installXServerXSDL") }
     private val startKlipperScreen by lazy { findPreference<Preference>("startKlipperScreen") }
     private val stopKlipperScreen by lazy { findPreference<Preference>("stopKlipperScreen") }
+    private val configureTelegramBot by lazy { findPreference<Preference>("configureTelegramBot") }
+    private val stopTelegramBot by lazy { findPreference<Preference>("stopTelegramBot") }
 
     private val requestCameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -390,6 +395,81 @@ class SettingsFragment : PreferenceFragmentCompat() {
             val intent = Intent(requireContext(), KlipperScreenRuntimeService::class.java)
                 .setAction(KlipperScreenRuntimeService.ACTION_STOP)
             requireContext().startService(intent)
+            true
+        }
+
+        telegramBot.progress.asLiveData().observe(viewLifecycleOwner) { progress ->
+            configureTelegramBot?.apply {
+                summary = progress.message
+                isEnabled = progress.stage != TelegramBotStage.Installing &&
+                    progress.stage != TelegramBotStage.Starting &&
+                    progress.stage != TelegramBotStage.Stopping
+            }
+            stopTelegramBot?.apply {
+                summary = progress.message
+                isEnabled = telegramBot.isRunning || progress.stage == TelegramBotStage.Starting
+            }
+        }
+
+        configureTelegramBot?.setOnPreferenceClickListener {
+            val form = android.widget.LinearLayout(requireContext()).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                val padding = (20 * resources.displayMetrics.density).toInt()
+                setPadding(padding, padding / 2, padding, 0)
+            }
+            val tokenInput = android.widget.EditText(requireContext()).apply {
+                hint = "Jeton fourni par @BotFather"
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                singleLine = true
+                setText("")
+            }
+            val chatInput = android.widget.EditText(requireContext()).apply {
+                hint = "Identifiant de chat Telegram"
+                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
+                singleLine = true
+                setText("")
+            }
+            form.addView(tokenInput, android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+            form.addView(chatInput, android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+            AlertDialog.Builder(requireContext())
+                .setTitle("Configurer le bot Telegram")
+                .setMessage("Les identifiants sont enregistrés dans les données privées de l’application. Ne partage pas le jeton.")
+                .setView(form)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton("Installer et démarrer", null)
+                .create().also { dialog ->
+                    dialog.setOnShowListener {
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                            val token = tokenInput.text.toString().trim()
+                            val chatId = chatInput.text.toString().trim()
+                            try {
+                                telegramBot.configure(token, chatId)
+                                dialog.dismiss()
+                                viewLifecycleOwner.lifecycleScope.launch {
+                                    try {
+                                        telegramBot.install()
+                                        telegramBot.start()
+                                        Toast.makeText(requireContext(), "Bot Telegram démarré", Toast.LENGTH_LONG).show()
+                                    } catch (cancelled: CancellationException) {
+                                        throw cancelled
+                                    } catch (error: Exception) {
+                                        Toast.makeText(requireContext(), error.message ?: "Échec du démarrage Telegram", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } catch (error: Exception) {
+                                Toast.makeText(requireContext(), error.message ?: "Configuration Telegram invalide", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    dialog.show()
+                }
+            true
+        }
+
+        stopTelegramBot?.setOnPreferenceClickListener {
+            telegramBot.stop()
             true
         }
 
