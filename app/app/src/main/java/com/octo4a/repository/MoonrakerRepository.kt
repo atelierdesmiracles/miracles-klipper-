@@ -289,6 +289,7 @@ class MoonrakerRepositoryImpl(
             runtimeLog.writeText("")
             val source = sourceDirectory(manifest.revision)
             val venv = venvDirectory(manifest.revision)
+            ensureAndroidSysfsCompatibility(source)
             val moonrakerSocket = File(printerDataDirectory, "comms/moonraker.sock")
             if (moonrakerSocket.exists() && !moonrakerSocket.delete()) {
                 throw IOException("Could not remove the previous Moonraker API socket")
@@ -445,6 +446,53 @@ class MoonrakerRepositoryImpl(
         if (configFile.isFile) configFile.readText() else ""
     } catch (_: Exception) {
         ""
+    }
+
+    /**
+     * Moonraker's serial-device endpoint walks /sys/class/tty. Android restricts
+     * this sysfs directory even inside PRoot, so the upstream function can throw
+     * PermissionError and return HTTP 500. Treat unavailable sysfs as an empty
+     * inventory; Klipper's actual serial connection is handled by Miracle Klipper's
+     * Android USB bridge and does not depend on this informational endpoint.
+     *
+     * Apply at startup (not only installation) so existing installations are fixed
+     * without deleting or reinstalling their Moonraker environment.
+     */
+    private fun ensureAndroidSysfsCompatibility(source: File) {
+        val target = File(source, "moonraker/utils/sysfs_devs.py")
+        if (!target.isFile) {
+            throw IOException("Moonraker sysfs device helper is missing: ${target.name}")
+        }
+        val patchScript = """
+            import pathlib, sys
+            path = pathlib.Path(sys.argv[1])
+            source = path.read_text()
+            marker = "# Miracle Klipper Android PRoot compatibility"
+            if marker in source:
+                raise SystemExit(0)
+            old = "    for tty_path in tty_dir.iterdir():\\n"
+            new = (
+                "    # Miracle Klipper Android PRoot compatibility\\n"
+                "    try:\\n"
+                "        tty_paths = list(tty_dir.iterdir())\\n"
+                "    except PermissionError:\\n"
+                "        return serial_devs\\n"
+                "    for tty_path in tty_paths:\\n"
+            )
+            if old not in source:
+                raise SystemExit("Unsupported Moonraker sysfs_devs.py: serial scan anchor not found")
+            path.write_text(source.replace(old, new, 1))
+            check = path.read_text()
+            if marker not in check or "except PermissionError:" not in check:
+                raise SystemExit("Moonraker Android sysfs compatibility patch verification failed")
+        """.trimIndent()
+        runInRootfs(
+            listOf(
+                "/usr/bin/python3", "-c", patchScript,
+                guestPath(target)
+            ),
+            "Apply Android sysfs compatibility patch"
+        )
     }
 
     private fun installSystemDependencies(moonrakerSource: File) {
