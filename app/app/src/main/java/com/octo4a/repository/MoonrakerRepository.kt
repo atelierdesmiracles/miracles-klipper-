@@ -396,9 +396,7 @@ class MoonrakerRepositoryImpl(
                     " ::1/128\n" +
                     "cors_domains:\n" +
                     " http://127.0.0.1:8080\n" +
-                    " http://localhost:8080\n" +
-                    " http://*.local:8080\n" +
-                    " http://*.lan:8080\n\n" +
+                    " http://localhost:8080\n\n" +
                     "[machine]\n" +
                     "provider: none\n" +
                     "shutdown_action: halt\n\n" +
