@@ -29,11 +29,13 @@ jobs:
             libpixman-1-dev libssl-dev libpciaccess-dev python3-xcbgen libfreetype-dev \
             build-essential cmake ninja-build unzip wget
 
-      - name: Set up Java
+      # Modern Android command-line tools require Java 17 even though the
+      # legacy Commander Genius Android build may need an older JDK at build time.
+      - name: Set up Java for Android SDK tools
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -56,6 +58,12 @@ jobs:
           git rev-parse HEAD | tee ../commandergenius-revision.txt
           test -f project/jni/application/xserver/AndroidBuild.sh
           test -f project/jni/application/xserver/AndroidAppSettings.cfg
+
+      - name: Select legacy JDK for upstream build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
 
       - name: Build upstream XServer-XSDL APK
         working-directory: xsdl-build
