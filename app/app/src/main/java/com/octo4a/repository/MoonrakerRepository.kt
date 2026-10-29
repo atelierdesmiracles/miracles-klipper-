@@ -470,15 +470,16 @@ class MoonrakerRepositoryImpl(
             marker = "# Miracle Klipper Android PRoot compatibility"
             if marker in source:
                 raise SystemExit(0)
-            old = "    for tty_path in tty_dir.iterdir():\\n"
-            new = (
-                "    # Miracle Klipper Android PRoot compatibility\\n"
-                "    try:\\n"
-                "        tty_paths = list(tty_dir.iterdir())\\n"
-                "    except PermissionError:\\n"
-                "        return serial_devs\\n"
-                "    for tty_path in tty_paths:\\n"
-            )
+            nl = chr(10)
+            old = "    for tty_path in tty_dir.iterdir():" + nl
+            new = nl.join([
+                "    # Miracle Klipper Android PRoot compatibility",
+                "    try:",
+                "        tty_paths = list(tty_dir.iterdir())",
+                "    except PermissionError:",
+                "        return serial_devs",
+                "    for tty_path in tty_paths:"
+            ]) + nl
             if old not in source:
                 raise SystemExit("Unsupported Moonraker sysfs_devs.py: serial scan anchor not found")
             path.write_text(source.replace(old, new, 1))
