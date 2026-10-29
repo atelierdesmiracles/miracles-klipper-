@@ -1,6 +1,12 @@
 name: Experimental embedded XServer-XSDL build
 
 on:
+  push:
+    branches:
+      - experimental-xsdl-embedded
+    paths:
+      - '.github/workflows/build-xsdl-experimental.yml'
+      - 'docs/xserver-xsdl-embedding.md'
   workflow_dispatch:
 
 permissions:
