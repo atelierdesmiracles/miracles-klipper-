@@ -206,6 +206,19 @@ class LinuxEnvironmentRepositoryImpl(
                 validatePreinstalledEnvironment(stagedRootfs)
                 configureDebian(stagedRootfs, manifest)
 
+                // Fail early if Android blocks PRoot (for example ptrace(TRACEME)
+                // returning EPERM). Do this before apt-get so the app reports a clear
+                // runtime incompatibility instead of leaving users with a partial package
+                // installation and a misleading apt error.
+                state.value = LinuxEnvironmentProgress(
+                    LinuxEnvironmentStage.InstallingPackages,
+                    message = "Checking Android PRoot compatibility before installing packages"
+                )
+                runInRootfs(
+                    stagedRootfs,
+                    listOf("/usr/bin/python3", "-c", "import sys; print(sys.version)")
+                )
+
                 state.value = LinuxEnvironmentProgress(
                     LinuxEnvironmentStage.InstallingPackages,
                     message = "Installing the pinned Debian package set"
