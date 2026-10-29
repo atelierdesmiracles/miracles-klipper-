@@ -420,7 +420,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
             val tokenInput = android.widget.EditText(requireContext()).apply {
                 hint = "Jeton fourni par @BotFather"
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-                singleLine = true
                 setText("")
             }
             val chatInput = android.widget.EditText(requireContext()).apply {
