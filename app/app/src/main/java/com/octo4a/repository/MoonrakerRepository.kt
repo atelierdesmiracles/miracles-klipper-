@@ -412,15 +412,14 @@ class MoonrakerRepositoryImpl(
         if (!configFile.isFile) return
         val current = configFile.readText()
         if (!MoonrakerConfigurationValidator.isLegacyLocalConfiguration(current)) return
-        val oldTrustedClients = "trusted_clients:\n 127.0.0.0/8\n ::1/128\n"
-        if (!current.contains(oldTrustedClients)) return
-        val newTrustedClients =
-            "trusted_clients:\n" +
-                " 127.0.0.0/8\n" +
-                " ::1/128\n"
         val migrated = current
             .replace("use_xheaders: False", "use_xheaders: True")
-            .replace(oldTrustedClients, newTrustedClients)
+            .replace(" 10.0.0.0/8\n", "")
+            .replace(" 172.16.0.0/12\n", "")
+            .replace(" 192.168.0.0/16\n", "")
+            .replace(" 169.254.0.0/16\n", "")
+            .replace(" fc00::/7\n", "")
+            .replace(" fe80::/10\n", "")
             .replace("http://127.0.0.1:5000", "http://127.0.0.1:8080")
             .replace("http://localhost:5000", "http://localhost:8080")
             .replace(" http://*.local:5000\n", "")
@@ -942,7 +941,7 @@ internal object MoonrakerConfigurationValidator {
 
     fun isSafeLocalConfiguration(configuration: String): Boolean = isConfiguration(configuration, true)
 
-    fun isLegacyLocalConfiguration(configuration: String): Boolean = isConfiguration(configuration, false, true)
+    fun isLegacyLocalConfiguration(configuration: String): Boolean =\n        isConfiguration(configuration, false, true) || isConfiguration(configuration, true, true)
 
     private fun isConfiguration(
         configuration: String,
@@ -965,6 +964,21 @@ internal object MoonrakerConfigurationValidator {
         val server = sections.singleSection("server", sectionOccurrences) ?: return false
         val auth = sections.singleSection("authorization", sectionOccurrences) ?: return false
         val machine = sections.singleSection("machine", sectionOccurrences) ?: return false
+        val trustedClients = auth.listValues("trusted_clients")
+        val currentTrustedClients = setOf("127.0.0.0/8", "::1/128")
+        val legacyTrustedClients = currentTrustedClients + setOf(
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "169.254.0.0/16",
+            "fc00::/7",
+            "fe80::/10"
+        )
+        val acceptedTrustedClients = if (allowLegacyCors) {
+            setOf(currentTrustedClients, legacyTrustedClients)
+        } else {
+            setOf(currentTrustedClients)
+        }
         val corsDomains = auth.listValues("cors_domains")
         val currentCorsDomains = setOf("http://127.0.0.1:8080", "http://localhost:8080")
         val legacyCorsDomains8080 = currentCorsDomains + setOf("http://*.local:8080", "http://*.lan:8080")
@@ -988,7 +1002,7 @@ internal object MoonrakerConfigurationValidator {
             server.hasExactlyOneSetting("use_xheaders", if (useReverseProxy) "True" else "False") &&
             machine.hasExactlyOneSetting("provider", "none") &&
             auth.hasExactlyOneSetting("enable_api_key", "True") &&
-            auth.listValues("trusted_clients") == setOf("127.0.0.0/8", "::1/128") &&
+            trustedClients in acceptedTrustedClients &&
             corsDomains in acceptedCorsDomains
     }
 

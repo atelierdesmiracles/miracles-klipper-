@@ -43,6 +43,22 @@ class MoonrakerManifestTest {
     }
 
     @Test
+    fun acceptsKnownLegacyLanTrustConfigurationForSafeMigration() {
+        val legacy = safeConfiguration()
+            .replace("use_xheaders: True", "use_xheaders: True")
+            .replace(
+                " ::1/128",
+                " ::1/128\n 10.0.0.0/8\n 172.16.0.0/12\n 192.168.0.0/16\n 169.254.0.0/16\n fc00::/7\n fe80::/10"
+            )
+            .replace(
+                "http://localhost:8080",
+                "http://localhost:8080\n http://*.local:8080\n http://*.lan:8080"
+            )
+        assertTrue(MoonrakerConfigurationValidator.isLegacyLocalConfiguration(legacy))
+        assertFalse(MoonrakerConfigurationValidator.isSafeLocalConfiguration(legacy))
+    }
+
+    @Test
     fun rejectsPublicBindingAndNonLoopbackTrustedClients() {
         assertFalse(
             MoonrakerConfigurationValidator.isSafeLocalConfiguration(
