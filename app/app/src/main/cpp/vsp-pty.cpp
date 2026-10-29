@@ -155,7 +155,7 @@ extern "C"
             serialDataClass,
             serialDataConstructor,
             serialDataArr,
-            static_cast<jint>(getBaudrate(baudrate)),
+            static_cast<jint>(baudrate),
             static_cast<jint>(cIflag),
             static_cast<jint>(cOflag),
             static_cast<jint>(cCflag),
