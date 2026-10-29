@@ -247,7 +247,7 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
                         ?: throw IllegalStateException("USB serial driver exposes no ports")
                     val activeDevice = activeDriver.device
                     if (!usbManager.hasPermission(activeDevice)) {
-                        logger.log(this, "USB permission missing when opening serial port; requesting selection again")
+                        logger.log(this) { "USB permission missing when opening serial port; requesting selection again" }
                         handleDeviceDetached()
                         updateDevicesList("")
                         return
