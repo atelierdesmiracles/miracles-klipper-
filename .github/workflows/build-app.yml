@@ -7,6 +7,15 @@ on:
     tags:
       - "v*"
   pull_request:
+  # The Debian workflow commits new SHA-256 pins using GITHUB_TOKEN, which does not
+  # start another push workflow. Build the APK after that image workflow finishes.
+  workflow_run:
+    workflows:
+      - Build preinstalled Debian environments
+    types:
+      - completed
+    branches:
+      - miracle-klipper-next
 
 permissions:
   contents: read
@@ -17,11 +26,15 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     name: Build and test Android app
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # For a completed Debian workflow, include the checksum-manifest commit it just pushed.
+          ref: ${{ github.event_name == 'workflow_run' && 'miracle-klipper-next' || github.ref }}
 
       # Current Android SDK command-line tools require JDK 17.
       - name: Set up JDK 17 for Android SDK tools
