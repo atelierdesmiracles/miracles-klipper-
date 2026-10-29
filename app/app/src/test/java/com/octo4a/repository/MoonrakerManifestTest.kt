@@ -31,7 +31,7 @@ class MoonrakerManifestTest {
     }
 
     @Test
-    fun rejectsPublicBindingAndAdditionalTrustedClients() {
+    fun rejectsPublicBindingAndNonLoopbackTrustedClients() {
         assertFalse(
             MoonrakerConfigurationValidator.isSafeLocalConfiguration(
                 safeConfiguration().replace("host: 127.0.0.1", "host: 0.0.0.0")
@@ -40,6 +40,15 @@ class MoonrakerManifestTest {
         assertFalse(
             MoonrakerConfigurationValidator.isSafeLocalConfiguration(
                 safeConfiguration().replace(" ::1/128", " ::1/128\n 192.168.1.0/24")
+            )
+        )
+    }
+
+    @Test
+    fun rejectsWildcardCorsOrigins() {
+        assertFalse(
+            MoonrakerConfigurationValidator.isSafeLocalConfiguration(
+                safeConfiguration().replace("http://localhost:8080", "http://*.lan:8080")
             )
         )
     }
@@ -106,17 +115,9 @@ class MoonrakerManifestTest {
         trusted_clients:
          127.0.0.0/8
          ::1/128
-         10.0.0.0/8
-         172.16.0.0/12
-         192.168.0.0/16
-         169.254.0.0/16
-         fc00::/7
-         fe80::/10
         cors_domains:
          http://127.0.0.1:8080
          http://localhost:8080
-         http://*.local:8080
-         http://*.lan:8080
 
         [machine]
         provider: none

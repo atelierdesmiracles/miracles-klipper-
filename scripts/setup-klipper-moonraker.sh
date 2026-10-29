@@ -43,7 +43,7 @@ echo -e "${COL}\nInserting configurations...\n${NC}"
 # Insert moonraker configs
 cat << EOF > ~/printer_data/config/moonraker.conf
 [server]
-host: 0.0.0.0
+host: 127.0.0.1
 port: 7125
 # The maximum size allowed for a file upload (in MiB).  Default 1024 MiB
 max_upload_size: 1024
@@ -56,16 +56,10 @@ enable_object_processing: False
 
 [authorization]
 cors_domains:
-    *://my.mainsail.xyz
-    *://*.local
-    *://*.lan
+    http://127.0.0.1:2137
+    http://localhost:2137
 trusted_clients:
-    10.0.0.0/8
     127.0.0.0/8
-    169.254.0.0/16
-    172.16.0.0/12
-    192.168.0.0/16
-    FE80::/10
     ::1/128
 
 # enables partial support of Octoprint API
@@ -125,10 +119,10 @@ EOF
 rm /etc/nginx/http.d/default.conf
 
 cat << EOF > /etc/nginx/http.d/mainsail.conf
-# /etc/nginx/sites-available/mainsail
-
+# Legacy standalone setup only; the in-app installer is authoritative.
+# Bind to loopback so printer controls are not exposed to the local network.
 server {
-    listen 2137 default_server;
+    listen 127.0.0.1:2137 default_server;
 
     access_log /var/log/nginx/mainsail-access.log;
     error_log /var/log/nginx/mainsail-error.log;

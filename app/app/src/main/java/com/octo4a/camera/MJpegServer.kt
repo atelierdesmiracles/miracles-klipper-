@@ -21,7 +21,7 @@ interface MJpegFrameProvider {
 }
 
 // Simple http server hosting mjpeg stream along with
-class MJpegServer(port: Int, private val frameProvider: MJpegFrameProvider): NanoHTTPD(port) {
+class MJpegServer(port: Int, private val frameProvider: MJpegFrameProvider): NanoHTTPD("127.0.0.1", port) {
 
     override fun serve(session: IHTTPSession?): Response {
         when (session?.uri) {

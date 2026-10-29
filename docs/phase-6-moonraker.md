@@ -11,13 +11,13 @@ KIAUH installe habituellement Moonraker comme service `systemd`. Android non roo
 ## API, sécurité et état
 
 - Le fichier initial `printer_data/config/moonraker.conf` est créé sans écraser une configuration existante.
-- Moonraker écoute toujours directement sur `127.0.0.1:7125`. L’interface web passe par Nginx sur le port 8080; Nginx autorise uniquement les clients IPv4 des réseaux privés et relaie l’adresse source à Moonraker. Les plages privées correspondantes sont donc marquées comme clientes de confiance. Sur le Wi-Fi local, les autres appareils peuvent accéder aux commandes Moonraker via l’interface; utiliser un réseau privé de confiance.
+- Moonraker écoute uniquement sur `127.0.0.1:7125`. Nginx sert l’interface sur `127.0.0.1:8080` et refuse tout accès distant. Les clients de confiance Moonraker et les origines CORS sont limités à la boucle locale. L’accès depuis un autre appareil du réseau n’est pas activé par défaut.
 - `klippy_uds_address` vise `/var/lib/miracle/printer_data/comms/klippy.sock`, partagé avec Klipper.
 - `[machine] provider: none` évite les opérations système que KIAUH confie normalement à `systemd`.
 - Le démarrage attend une réponse réelle de `GET /server/info` et lit le résultat enveloppé par Moonraker dans `result`. L’application affiche séparément API active avec Klipper prêt, API active avec Klipper déconnecté, API active avec un autre état Klipper, ou API indisponible. Un processus vivant seul n’est pas considéré comme prêt.
 - Les sorties Moonraker sont conservées dans `printer_data/logs/moonraker-process.log`; le journal Moonraker reste dans `printer_data/logs/moonraker.log`.
 
-L’installation et le démarrage restent disponibles dans Réglages sous « Moonraker API ». Le tableau de bord principal démarre Klipper, Moonraker puis Nginx dans cet ordre, et ouvre l’interface sélectionnée. L’API directe reste sur la boucle locale; l’accès depuis le réseau passe par le contrôle d’accès Nginx décrit en phase 7.
+L’installation et le démarrage restent disponibles dans Réglages sous « Moonraker API ». Le tableau de bord principal démarre Klipper, Moonraker puis Nginx dans cet ordre, et ouvre l’interface sélectionnée. L’API directe et l’interface restent sur la boucle locale, comme décrit en phase 7.
 
 ## Vérifications
 

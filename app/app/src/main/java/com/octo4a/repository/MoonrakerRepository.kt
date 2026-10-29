@@ -122,7 +122,7 @@ class MoonrakerRepositoryImpl(
         !MoonrakerConfigurationValidator.isSafeLocalConfiguration(readConfiguration()) ->
             MoonrakerProgress(
                 MoonrakerStage.NeedsConfiguration,
-                "Moonraker config must use loopback-only access, the Klipper socket, and the Mainsail/Fluidd proxy origin",
+                "Moonraker config must use loopback-only access, the Klipper socket, and the local web-interface origin",
                 manifest.revision
             )
         else -> MoonrakerProgress(
@@ -383,7 +383,7 @@ class MoonrakerRepositoryImpl(
         if (!configFile.exists()) {
             configFile.writeText(
                 "# Miracle Klipper Moonraker configuration.\n" +
-                    "# Moonraker stays on loopback behind the LAN-filtered Nginx proxy.\n" +
+                    "# Moonraker and its reverse proxy are restricted to this phone.\n" +
                     "[server]\n" +
                     "host: 127.0.0.1\n" +
                     "port: 7125\n" +
@@ -394,12 +394,6 @@ class MoonrakerRepositoryImpl(
                     "trusted_clients:\n" +
                     " 127.0.0.0/8\n" +
                     " ::1/128\n" +
-                    " 10.0.0.0/8\n" +
-                    " 172.16.0.0/12\n" +
-                    " 192.168.0.0/16\n" +
-                    " 169.254.0.0/16\n" +
-                    " fc00::/7\n" +
-                    " fe80::/10\n" +
                     "cors_domains:\n" +
                     " http://127.0.0.1:8080\n" +
                     " http://localhost:8080\n" +
@@ -425,18 +419,16 @@ class MoonrakerRepositoryImpl(
         val newTrustedClients =
             "trusted_clients:\n" +
                 " 127.0.0.0/8\n" +
-                " ::1/128\n" +
-                " 10.0.0.0/8\n" +
-                " 172.16.0.0/12\n" +
-                " 192.168.0.0/16\n" +
-                " 169.254.0.0/16\n" +
-                " fc00::/7\n" +
-                " fe80::/10\n"
+                " ::1/128\n"
         val migrated = current
             .replace("use_xheaders: False", "use_xheaders: True")
             .replace(oldTrustedClients, newTrustedClients)
             .replace("http://127.0.0.1:5000", "http://127.0.0.1:8080")
             .replace("http://localhost:5000", "http://localhost:8080")
+            .replace(" http://*.local:5000\n", "")
+            .replace(" http://*.lan:5000\n", "")
+            .replace(" http://*.local:8080\n", "")
+            .replace(" http://*.lan:8080\n", "")
         if (MoonrakerConfigurationValidator.isSafeLocalConfiguration(migrated)) {
             configFile.writeText(migrated)
         }
@@ -980,23 +972,10 @@ internal object MoonrakerConfigurationValidator {
             server.hasExactlyOneSetting("use_xheaders", if (useReverseProxy) "True" else "False") &&
             machine.hasExactlyOneSetting("provider", "none") &&
             auth.hasExactlyOneSetting("enable_api_key", "True") &&
-            auth.listValues("trusted_clients") == (
-                if (useReverseProxy) setOf(
-                    "127.0.0.0/8",
-                    "::1/128",
-                    "10.0.0.0/8",
-                    "172.16.0.0/12",
-                    "192.168.0.0/16",
-                    "169.254.0.0/16",
-                    "fc00::/7",
-                    "fe80::/10"
-                ) else setOf("127.0.0.0/8", "::1/128")
-                ) &&
+            auth.listValues("trusted_clients") == setOf("127.0.0.0/8", "::1/128") &&
             auth.listValues("cors_domains") == setOf(
                 "http://127.0.0.1:8080",
-                "http://localhost:8080",
-                "http://*.local:8080",
-                "http://*.lan:8080"
+                "http://localhost:8080"
             )
     }
 

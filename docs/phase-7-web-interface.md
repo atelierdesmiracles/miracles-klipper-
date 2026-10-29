@@ -11,7 +11,7 @@ Les réglages permettent d’installer les deux interfaces et de choisir celle q
 
 ## Accès et proxy
 
-Nginx écoute sur le port `8080`, sert le client sélectionné et relaie les routes API et WebSocket à Moonraker sur `127.0.0.1:7125`. Le WebView intégré utilise `http://127.0.0.1:8080/`. Nginx refuse les clients hors boucle locale, réseaux IPv4 privés et lien-local. Moonraker ne se lie pas directement au réseau; les adresses IPv4 privées sont toutefois déclarées de confiance pour permettre au proxy d’acheminer l’API. Ne pas exposer ce port sur un réseau non fiable ni sur Internet.
+Nginx écoute uniquement sur `127.0.0.1:8080`, sert le client sélectionné et relaie les routes API et WebSocket à Moonraker sur `127.0.0.1:7125`. Le WebView intégré utilise `http://127.0.0.1:8080/`. L’interface, l’API et les clients de confiance sont limités à la boucle locale : les autres appareils du Wi-Fi ne peuvent pas accéder au pilotage par défaut. Toute option future d’accès distant devra être explicite et protégée par authentification.
 
 Le modèle suit les routes et options de proxy documentées par [KIAUH](https://github.com/dw-0/kiauh/blob/master/kiauh/components/webui_client/assets/nginx_cfg), et le mode distant Mainsail configuré par [KIAUH](https://github.com/dw-0/kiauh/blob/master/kiauh/components/webui_client/client_utils.py). Les dossiers statiques, le serveur Nginx et les journaux restent dans l’espace privé de l’application, monté dans Debian PRoot.
 
@@ -19,4 +19,4 @@ Le modèle suit les routes et options de proxy documentées par [KIAUH](https://
 
 Cette phase remplace l’interface OctoPrint sur le tableau de bord, mais pas encore toute la couche USB héritée d’Octo4a: celle-ci fournit actuellement le pont série Android nécessaire. Le raccordement de ce pont au MCU Klipper et l’essai avec une imprimante réelle restent à valider en phase 9. Aucun téléphone ni imprimante n’est connecté à ce poste; la disponibilité sur appareil, l’accès depuis un autre appareil du Wi-Fi, les WebSockets et les commandes imprimante ne sont donc pas qualifiés ici.
 
-Avant utilisation, installer Debian, Klipper, Moonraker et l’une des interfaces, puis renseigner un `printer.cfg` correspondant exactement à l’imprimante et à sa carte. Garder le téléphone et l’imprimante sur un réseau privé de confiance.
+Avant utilisation, installer Debian, Klipper, Moonraker et l’une des interfaces, puis renseigner un `printer.cfg` correspondant exactement à l’imprimante et à sa carte. Garder l’accès distant désactivé tant qu’une configuration d’authentification et de contrôle d’accès dédiée n’a pas été testée.

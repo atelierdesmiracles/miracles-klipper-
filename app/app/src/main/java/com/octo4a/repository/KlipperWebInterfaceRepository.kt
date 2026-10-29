@@ -558,7 +558,7 @@ class KlipperWebInterfaceRepositoryImpl(
                 }
 
                 server {
-                    listen 0.0.0.0:$WEB_PORT;
+                    listen 127.0.0.1:$WEB_PORT;
                     server_name _;
                     root $uiRoot;
                     index index.html;
@@ -566,11 +566,8 @@ class KlipperWebInterfaceRepositoryImpl(
                     client_max_body_size 0;
                     proxy_request_buffering off;
 
+                    # Local-only by default: never expose printer controls to the LAN.
                     allow 127.0.0.1;
-                    allow 10.0.0.0/8;
-                    allow 172.16.0.0/12;
-                    allow 192.168.0.0/16;
-                    allow 169.254.0.0/16;
                     deny all;
 
                     location / {
@@ -663,7 +660,7 @@ class KlipperWebInterfaceRepositoryImpl(
     private fun isPortAvailable(): Boolean = try {
         ServerSocket().use { socket ->
             socket.reuseAddress = false
-            socket.bind(InetSocketAddress("0.0.0.0", WEB_PORT))
+            socket.bind(InetSocketAddress("127.0.0.1", WEB_PORT))
         }
         true
     } catch (_: Exception) {
