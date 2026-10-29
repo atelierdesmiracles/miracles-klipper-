@@ -7,6 +7,7 @@ on:
     tags:
       - "v*"
   pull_request:
+  workflow_dispatch:
   # The Debian workflow commits new SHA-256 pins using GITHUB_TOKEN, which does not
   # start another push workflow. Build the APK after that image workflow finishes.
   workflow_run:
