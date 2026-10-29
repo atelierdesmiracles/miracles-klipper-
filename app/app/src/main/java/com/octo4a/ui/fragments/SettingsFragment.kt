@@ -425,7 +425,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
             val chatInput = android.widget.EditText(requireContext()).apply {
                 hint = "Identifiant de chat Telegram"
                 inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
-                singleLine = true
                 setText("")
             }
             form.addView(tokenInput, android.widget.LinearLayout.LayoutParams(
