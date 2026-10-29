@@ -5,6 +5,14 @@ import org.junit.Test
 
 class PrinterProberTest {
     @Test
+    fun teensyVendorAndProductIdsUseUsbDescriptorOrder() {
+        assertTrue(
+            "Teensy VID/PID must match Android USB descriptors",
+            cdcDevices.contains(UsbDeviceId(5824, 1155))
+        )
+    }
+
+    @Test
     fun bttBoardsListedInUsbAttachFilterHaveSerialDrivers() {
         assertTrue(
             "BIGTREETECH SKR Mini E3 must be recognized as CDC ACM",
