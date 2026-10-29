@@ -353,13 +353,25 @@ class KlipperWebInterfaceRepositoryImpl(
         get() = File(nginxDirectory, "nginx.conf")
 
     private fun readyProgress(client: KlipperWebInterface, version: String): WebInterfaceProgress {
-        val apiReachable = isMoonrakerApiHealthy()
-        val message = if (apiReachable) {
-            client.displayName + " is ready at " + KlipperWebInterfaceRepository.LOCAL_URL + "; Moonraker API responds"
-        } else {
-            client.displayName + " is served at " + KlipperWebInterfaceRepository.LOCAL_URL + "; start Moonraker to connect the printer"
+        // Test Moonraker directly and through Nginx separately so the UI can
+        // distinguish a stopped API from a broken reverse-proxy route.
+        val directApiReachable = isMoonrakerDirectApiHealthy()
+        val proxiedApiReachable = isMoonrakerApiHealthy()
+        val message = when {
+            proxiedApiReachable ->
+                client.displayName + " is ready at " + KlipperWebInterfaceRepository.LOCAL_URL +
+                    "; Moonraker API is reachable through Nginx"
+            directApiReachable ->
+                client.displayName + " is served, and Moonraker responds on port 7125, " +
+                    "but Nginx cannot proxy /server/info; check printer_data/logs/nginx-error.log"
+            else ->
+                client.displayName + " is served at " + KlipperWebInterfaceRepository.LOCAL_URL +
+                    ", but Moonraker API is not responding; start Moonraker and check " +
+                    "printer_data/logs/moonraker-process.log"
         }
-        return WebInterfaceProgress(WebInterfaceStage.Ready, message, client, version, apiReachable)
+        return WebInterfaceProgress(
+            WebInterfaceStage.Ready, message, client, version, proxiedApiReachable
+        )
     }
 
     private fun ensureNginxInstalled() {
@@ -614,15 +626,25 @@ class KlipperWebInterfaceRepositoryImpl(
         false
     }
 
-    private fun isMoonrakerApiHealthy(): Boolean = try {
-        val connection = URL(KlipperWebInterfaceRepository.LOCAL_URL + "server/info")
-            .openConnection() as HttpURLConnection
+    private fun isMoonrakerApiHealthy(): Boolean =
+        isApiEndpointHealthy(KlipperWebInterfaceRepository.LOCAL_URL + "server/info")
+
+    private fun isMoonrakerDirectApiHealthy(): Boolean =
+        isApiEndpointHealthy("http://127.0.0.1:7125/server/info")
+
+    private fun isApiEndpointHealthy(endpoint: String): Boolean = try {
+        val connection = URL(endpoint).openConnection() as HttpURLConnection
         connection.connectTimeout = HEALTH_TIMEOUT_MS
         connection.readTimeout = HEALTH_TIMEOUT_MS
         connection.setRequestProperty("Accept", "application/json")
         try {
-            connection.responseCode == HttpURLConnection.HTTP_OK &&
-                connection.inputStream.bufferedReader().use { it.readText().contains("moonraker_version") }
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                false
+            } else {
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                body.contains("\\"moonraker_version\\":") &&
+                    !body.contains("\\"error\\":")
+            }
         } finally {
             connection.disconnect()
         }
