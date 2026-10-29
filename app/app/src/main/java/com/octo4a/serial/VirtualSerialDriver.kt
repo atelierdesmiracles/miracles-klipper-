@@ -149,8 +149,12 @@ class VirtualSerialDriver(val context: Context, private val prefs: MainPreferenc
                 val intent = Intent(OctoPrintService.BROADCAST_SERVICE_USB_GOT_ACCESS)
                     .setPackage(context.packageName)
                 requestedDevice = device
-                val pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT or
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+                // UsbManager must add EXTRA_DEVICE and EXTRA_PERMISSION_GRANTED to the result
+                // intent. An immutable PendingIntent drops those fill-in extras on Android 12+.
+                // compileSdk is currently 28, so use Android's documented FLAG_MUTABLE value
+                // only on API 31+ until the project performs its dedicated SDK upgrade.
+                val mutablePendingIntentFlag = if (Build.VERSION.SDK_INT >= 31) 0x02000000 else 0
+                val pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT or mutablePendingIntentFlag
                 val mPendingIntent =
                     PendingIntent.getBroadcast(context, usbPermissionRequestCode, intent, pendingIntentFlags)
                 usbManager.requestPermission(device.device, mPendingIntent)
