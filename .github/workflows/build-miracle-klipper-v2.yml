@@ -1,0 +1,45 @@
+name: Miracle Klipper V2 Android test build
+
+on:
+  push:
+    branches:
+      - rewrite/miracle-klipper-v2
+    paths:
+      - 'v2/android/**'
+      - '.github/workflows/build-miracle-klipper-v2.yml'
+  pull_request:
+    paths:
+      - 'v2/android/**'
+      - '.github/workflows/build-miracle-klipper-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: |
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          yes | sdkmanager --licenses
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Unit tests
+        run: gradle -p v2/android testDebugUnitTest
+      - name: Build ARM64 debug APK
+        run: gradle -p v2/android assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: miracle-klipper-v2-arm64-debug
+          path: v2/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
