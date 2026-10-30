@@ -60,7 +60,7 @@ class MainActivity : Activity() {
         val stat = StatFs(filesDir.absolutePath)
         val freeMb = stat.availableBytes / (1024L * 1024L)
         val usb = packageManager.hasSystemFeature(PackageManager.FEATURE_USB_HOST)
-        val readiness = DeviceSupportPolicy.evaluate(DeviceProfile(
+        val readiness = DeviceReadiness.evaluate(DeviceProfile(
             Build.SUPPORTED_ABIS.toList(), Build.VERSION.SDK_INT, totalMb, freeMb, usb
         ))
         report.text = buildString {
