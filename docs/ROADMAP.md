@@ -41,7 +41,7 @@ This is the working plan for the `miracle-klipper-next` branch. Work is intentio
 ## Phase 3 — Services and API
 
 - [ ] Verify Klipper and Moonraker process lifecycle.
-- [ ] Add/verify health checks beyond PID/process-start checks.
+- [x] Add/verify health checks beyond PID/process-start checks (Klipper socket, Moonraker `/server/info`, Nginx static UI, proxied HTTP API, and RFC 6455 WebSocket upgrade probe).
 - [ ] Validate Moonraker HTTP API and WebSocket reconnect behavior.
 - [ ] Verify stop/restart behavior and recovery after process crashes.
 - [ ] Make service states explicit in UI: stopped, starting, ready, degraded, failed.
