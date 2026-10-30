@@ -17,13 +17,19 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.net.Socket
 import java.net.URL
 import java.security.MessageDigest
+import java.security.SecureRandom
+import java.nio.charset.StandardCharsets
+import java.util.Base64
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
@@ -96,7 +102,8 @@ data class WebInterfaceProgress(
     val message: String,
     val client: KlipperWebInterface? = null,
     val version: String? = null,
-    val moonrakerReachable: Boolean? = null
+    val moonrakerReachable: Boolean? = null,
+    val moonrakerWebSocketReachable: Boolean? = null
 )
 
 interface KlipperWebInterfaceRepository {
@@ -112,6 +119,32 @@ interface KlipperWebInterfaceRepository {
 
     companion object {
         const val LOCAL_URL = "http://127.0.0.1:8080/"
+    }
+}
+
+internal object WebSocketHandshakeValidator {
+    private const val ACCEPT_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+    fun isSuccessfulUpgrade(statusLine: String, headers: Map<String, String>, key: String): Boolean {
+        val statusCode = statusLine.trim().split(Regex("\\s+")).getOrNull(1)?.toIntOrNull()
+        if (statusCode != 101) return false
+
+        val normalized = headers.entries.associate { it.key.toLowerCase(Locale.US) to it.value }
+        if (!normalized["upgrade"].equals("websocket", ignoreCase = true)) return false
+        val connectionTokens = normalized["connection"]
+            ?.split(',')
+            ?.map { it.trim() }
+            ?: return false
+        if (connectionTokens.none { it.equals("upgrade", ignoreCase = true) }) return false
+
+        val expectedAccept = expectedAccept(key)
+        return normalized["sec-websocket-accept"] == expectedAccept
+    }
+
+    fun expectedAccept(key: String): String {
+        val digest = MessageDigest.getInstance("SHA-1")
+            .digest((key + ACCEPT_GUID).toByteArray(StandardCharsets.US_ASCII))
+        return Base64.getEncoder().encodeToString(digest)
     }
 }
 
@@ -357,20 +390,24 @@ class KlipperWebInterfaceRepositoryImpl(
         // distinguish a stopped API from a broken reverse-proxy route.
         val directApiReachable = isMoonrakerDirectApiHealthy()
         val proxiedApiReachable = isMoonrakerApiHealthy()
+        val websocketReachable = isMoonrakerWebSocketHealthy()
         val message = when {
-            proxiedApiReachable ->
-                client.displayName + " is ready at " + KlipperWebInterfaceRepository.LOCAL_URL +
-                    "; Moonraker API is reachable through Nginx"
-            directApiReachable ->
-                client.displayName + " is served, and Moonraker responds on port 7125, " +
+            !proxiedApiReachable && directApiReachable ->
+                client.displayName + " is served, and Moonraker responds directly on port 7125, " +
                     "but Nginx cannot proxy /server/info; check printer_data/logs/nginx-error.log"
-            else ->
+            !proxiedApiReachable ->
                 client.displayName + " is served at " + KlipperWebInterfaceRepository.LOCAL_URL +
                     ", but Moonraker API is not responding; start Moonraker and check " +
                     "printer_data/logs/moonraker-process.log"
+            !websocketReachable ->
+                client.displayName + " and the Moonraker HTTP API are reachable, but the WebSocket " +
+                    "upgrade through Nginx failed; live printer updates may not work. Check nginx-error.log"
+            else ->
+                client.displayName + " is ready at " + KlipperWebInterfaceRepository.LOCAL_URL +
+                    "; static UI, Moonraker HTTP API and WebSocket are reachable through Nginx"
         }
         return WebInterfaceProgress(
-            WebInterfaceStage.Ready, message, client, version, proxiedApiReachable
+            WebInterfaceStage.Ready, message, client, version, proxiedApiReachable, websocketReachable
         )
     }
 
@@ -639,6 +676,75 @@ class KlipperWebInterfaceRepositoryImpl(
 
     private fun isMoonrakerDirectApiHealthy(): Boolean =
         isApiEndpointHealthy("http://127.0.0.1:7125/server/info")
+
+    /**
+     * Performs a real RFC 6455 HTTP Upgrade handshake through Nginx.
+     * An HTTP 200 from /server/info alone does not prove that live updates work.
+     */
+    private fun isMoonrakerWebSocketHealthy(): Boolean = try {
+        val randomKey = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        val key = Base64.getEncoder().encodeToString(randomKey)
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress("127.0.0.1", WEB_PORT), HEALTH_TIMEOUT_MS)
+            socket.soTimeout = HEALTH_TIMEOUT_MS
+            val request = (
+                "GET /websocket HTTP/1.1\\r\\n" +
+                    "Host: 127.0.0.1:$WEB_PORT\\r\\n" +
+                    "Upgrade: websocket\\r\\n" +
+                    "Connection: Upgrade\\r\\n" +
+                    "Sec-WebSocket-Key: $key\\r\\n" +
+                    "Sec-WebSocket-Version: 13\\r\\n" +
+                    "Origin: http://127.0.0.1:$WEB_PORT\\r\\n\\r\\n"
+                ).toByteArray(StandardCharsets.US_ASCII)
+            socket.getOutputStream().apply {
+                write(request)
+                flush()
+            }
+
+            val input = BufferedInputStream(socket.getInputStream())
+            val statusLine = readHttpHeaderLine(input)
+            val headers = linkedMapOf<String, String>()
+            var totalHeaderBytes = statusLine.length
+            var headerCount = 0
+            while (true) {
+                val line = readHttpHeaderLine(input)
+                totalHeaderBytes += line.length
+                if (totalHeaderBytes > MAX_WEBSOCKET_HEADER_BYTES) {
+                    throw IOException("Moonraker WebSocket response headers are too large")
+                }
+                if (line.isEmpty()) break
+                if (++headerCount > MAX_WEBSOCKET_HEADERS) {
+                    throw IOException("Moonraker WebSocket response contains too many headers")
+                }
+                val separator = line.indexOf(':')
+                if (separator <= 0) throw IOException("Invalid Moonraker WebSocket response header")
+                val name = line.substring(0, separator).trim().toLowerCase(Locale.US)
+                val value = line.substring(separator + 1).trim()
+                headers[name] = if (headers.containsKey(name)) {
+                    headers.getValue(name) + ", " + value
+                } else value
+            }
+            WebSocketHandshakeValidator.isSuccessfulUpgrade(statusLine, headers, key)
+        }
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun readHttpHeaderLine(input: BufferedInputStream): String {
+        val bytes = ByteArrayOutputStream()
+        var previous = -1
+        while (bytes.size() <= MAX_WEBSOCKET_LINE_BYTES) {
+            val next = input.read()
+            if (next < 0) throw IOException("Moonraker closed the WebSocket handshake unexpectedly")
+            if (previous == 13 && next == 10) {
+                val line = bytes.toByteArray()
+                return String(line, 0, line.size - 1, StandardCharsets.ISO_8859_1)
+            }
+            bytes.write(next)
+            previous = next
+        }
+        throw IOException("Moonraker WebSocket response header line is too long")
+    }
 
     private fun isApiEndpointHealthy(endpoint: String): Boolean = try {
         val connection = URL(endpoint).openConnection() as HttpURLConnection
@@ -924,6 +1030,9 @@ class KlipperWebInterfaceRepositoryImpl(
         private const val MAX_ARCHIVE_ENTRIES = 30000
         private const val DOWNLOAD_TIMEOUT_MS = 45000
         private const val HEALTH_TIMEOUT_MS = 1500
+        private const val MAX_WEBSOCKET_LINE_BYTES = 8192
+        private const val MAX_WEBSOCKET_HEADER_BYTES = 32768
+        private const val MAX_WEBSOCKET_HEADERS = 64
         private const val STARTUP_ATTEMPTS = 30
         private const val STARTUP_RETRY_MS = 500L
         private const val STOP_TIMEOUT_MS = 5000L
