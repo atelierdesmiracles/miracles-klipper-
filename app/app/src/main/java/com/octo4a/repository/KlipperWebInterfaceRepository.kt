@@ -688,13 +688,13 @@ class KlipperWebInterfaceRepositoryImpl(
             socket.connect(InetSocketAddress("127.0.0.1", WEB_PORT), HEALTH_TIMEOUT_MS)
             socket.soTimeout = HEALTH_TIMEOUT_MS
             val request = (
-                "GET /websocket HTTP/1.1\\r\\n" +
-                    "Host: 127.0.0.1:$WEB_PORT\\r\\n" +
-                    "Upgrade: websocket\\r\\n" +
-                    "Connection: Upgrade\\r\\n" +
-                    "Sec-WebSocket-Key: $key\\r\\n" +
-                    "Sec-WebSocket-Version: 13\\r\\n" +
-                    "Origin: http://127.0.0.1:$WEB_PORT\\r\\n\\r\\n"
+                "GET /websocket HTTP/1.1\r\n" +
+                    "Host: 127.0.0.1:$WEB_PORT\r\n" +
+                    "Upgrade: websocket\r\n" +
+                    "Connection: Upgrade\r\n" +
+                    "Sec-WebSocket-Key: $key\r\n" +
+                    "Sec-WebSocket-Version: 13\r\n" +
+                    "Origin: http://127.0.0.1:$WEB_PORT\r\n\r\n"
                 ).toByteArray(StandardCharsets.US_ASCII)
             socket.getOutputStream().apply {
                 write(request)
