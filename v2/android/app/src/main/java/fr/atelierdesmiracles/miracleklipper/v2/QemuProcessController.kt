@@ -23,10 +23,11 @@ class QemuProcessController {
                     }
                     config.qmpSocket.parentFile?.mkdirs()
                     config.serialLog.parentFile?.mkdirs()
+                    config.processLog.parentFile?.mkdirs()
                     process = ProcessBuilder(preflight.command)
                         .directory(workingDirectory)
                         .redirectErrorStream(true)
-                        .redirectOutput(ProcessBuilder.Redirect.appendTo(config.serialLog))
+                        .redirectOutput(ProcessBuilder.Redirect.appendTo(config.processLog))
                         .start()
                     QemuStartResult.Started(process!!)
                 } catch (error: IOException) {
